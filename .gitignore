@@ -4,3 +4,5 @@ coverage/
 *.tgz
 **/.wrangler/
 templates/worker/worker-configuration.d.ts
+templates/worker/public/workstar.css
+**/.workstar/

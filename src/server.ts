@@ -3,8 +3,12 @@ import {
   arrayPrefix,
   directivePrefix,
   isDirective,
+  isRepeat,
   isTemplate,
+  repeatItems,
+  repeatPrefix,
   resolve,
+  resolveTextareaValue,
   slotPrefix,
   type Template,
 } from './template-model.js';
@@ -81,7 +85,7 @@ function scanStaticMarkup(context: HtmlContext, markup: string): void {
         } else if (
           match[1] !== '/' &&
           name &&
-          /^(script|style|textarea|title)$/.test(name) &&
+          /^(script|style|textarea|title|noscript)$/.test(name) &&
           !context.tagText.trimEnd().endsWith('/')
         ) {
           context.rawTextElement = name;
@@ -104,10 +108,22 @@ function renderTemplate(template: Template): string {
     tagText: '',
   };
   let output = '';
+  let pendingTextareaValue: string | null = null;
+  const appendStatic = (markup: string) => {
+    if (pendingTextareaValue !== null) {
+      if (!markup.startsWith('>')) {
+        throw new Error('Textarea value directive must end the opening tag.');
+      }
+      output += `>${pendingTextareaValue}${markup.slice(1)}`;
+      pendingTextareaValue = null;
+    } else {
+      output += markup;
+    }
+    scanStaticMarkup(context, markup);
+  };
   for (const [index, value] of template.values.entries()) {
     const before = template.strings[index] ?? '';
-    output += before;
-    scanStaticMarkup(context, before);
+    appendStatic(before);
     if (isDirective(value)) {
       if (
         !context.inTag ||
@@ -126,6 +142,13 @@ function renderTemplate(template: Template): string {
         if (attribute !== null) {
           output += ` ${value.name}="${escapeHtml(attribute)}"`;
         }
+      } else if (value.kind === 'textarea') {
+        if (!/^<\s*textarea\b/i.test(context.tagText)) {
+          throw new Error(
+            'Textarea value directive requires a textarea element.',
+          );
+        }
+        pendingTextareaValue = escapeHtml(resolveTextareaValue(value.source));
       }
       output += ` ${directivePrefix}${index}=""`;
     } else {
@@ -141,12 +164,20 @@ function renderTemplate(template: Template): string {
       output += `<!--${slotPrefix}${index}-->${renderValue(resolve(value))}<!--/${slotPrefix}${index}-->`;
     }
   }
-  output += template.strings[template.strings.length - 1] ?? '';
+  appendStatic(template.strings[template.strings.length - 1] ?? '');
   return output;
 }
 
 function renderValue(value: unknown): string {
   if (value === null || value === undefined || value === false) return '';
+  if (isRepeat(value)) {
+    return repeatItems(value)
+      .map(
+        ({ item }, index) =>
+          `<!--${repeatPrefix}${index}-->${renderValue(value.view({ value: item }))}<!--/${repeatPrefix}${index}-->`,
+      )
+      .join('');
+  }
   if (isTemplate(value)) return renderTemplate(value);
   if (Array.isArray(value)) {
     return value

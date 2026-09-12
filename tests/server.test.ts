@@ -54,5 +54,8 @@ describe('server rendering', () => {
         </script>`,
       ),
     ).toThrow('Child expressions');
+    expect(() =>
+      renderToString(html`<noscript>${'Use email instead.'}</noscript>`),
+    ).toThrow('Child expressions');
   });
 });

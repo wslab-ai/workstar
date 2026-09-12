@@ -1,7 +1,15 @@
 // @vitest-environment happy-dom
 
 import { describe, expect, it } from 'vitest';
-import { attr, html, hydrate, on, signal, tick } from '../src/index.js';
+import {
+  attr,
+  html,
+  hydrate,
+  on,
+  signal,
+  textareaValue,
+  tick,
+} from '../src/index.js';
 import { renderToString } from '../src/server.js';
 
 describe('hydration', () => {
@@ -29,7 +37,7 @@ describe('hydration', () => {
     expect(host.childNodes).toHaveLength(0);
   });
 
-  it('hydrates nested conditional content and keyed array regions', async () => {
+  it('hydrates nested conditional content and array regions', async () => {
     const host = document.createElement('div');
     const visible = signal(true);
     const label = signal('first');
@@ -59,5 +67,22 @@ describe('hydration', () => {
 
     expect(() => hydrate(host, content)).toThrow('Hydration text mismatch');
     expect(host.querySelector('p')?.textContent).toBe('changed');
+  });
+
+  it('hydrates textarea values and preserves edits made before hydration', async () => {
+    const host = document.createElement('div');
+    const value = signal('Initial <text>');
+    const content = html`<textarea ${textareaValue(value)}></textarea>`;
+    const markup = renderToString(content);
+    expect(markup).toContain('Initial &lt;text&gt;');
+    host.innerHTML = markup;
+    const textarea = host.querySelector('textarea')!;
+    textarea.value = 'Draft in progress';
+    const dispose = hydrate(host, content);
+    expect(textarea.value).toBe('Draft in progress');
+    value.value = 'Updated';
+    await tick();
+    expect(textarea.value).toBe('Updated');
+    dispose();
   });
 });

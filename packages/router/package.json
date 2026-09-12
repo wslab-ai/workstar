@@ -1,6 +1,6 @@
 {
   "name": "workstar-router",
-  "version": "0.1.0-alpha.0",
+  "version": "0.1.0",
   "description": "A small isomorphic URL matcher for Workstar applications.",
   "type": "module",
   "license": "MIT",

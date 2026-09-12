@@ -13,6 +13,13 @@ export type HeadEntry =
       readonly href: string;
       readonly hreflang?: string;
       readonly type?: string;
+      readonly sizes?: string;
+    }
+  | {
+      readonly kind: 'script';
+      readonly src: string;
+      readonly async?: boolean;
+      readonly defer?: boolean;
     }
   | { readonly kind: 'json-ld'; readonly value: unknown };
 
@@ -60,7 +67,9 @@ function renderHead(entry: HeadEntry): string {
     case 'property':
       return `<meta property="${escapeHtml(entry.property)}" content="${escapeHtml(entry.content)}">`;
     case 'link':
-      return `<link rel="${escapeHtml(entry.rel)}" href="${assertSafeUrl(entry.href)}"${entry.hreflang ? ` hreflang="${escapeHtml(entry.hreflang)}"` : ''}${entry.type ? ` type="${escapeHtml(entry.type)}"` : ''}>`;
+      return `<link rel="${escapeHtml(entry.rel)}" href="${assertSafeUrl(entry.href)}"${entry.hreflang ? ` hreflang="${escapeHtml(entry.hreflang)}"` : ''}${entry.type ? ` type="${escapeHtml(entry.type)}"` : ''}${entry.sizes ? ` sizes="${escapeHtml(entry.sizes)}"` : ''}>`;
+    case 'script':
+      return `<script src="${assertSafeUrl(entry.src)}"${entry.async ? ' async' : ''}${entry.defer ? ' defer' : ''}></script>`;
     case 'json-ld': {
       const serialized = JSON.stringify(entry.value);
       if (serialized === undefined) {

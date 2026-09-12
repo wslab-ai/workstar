@@ -4,18 +4,21 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev",
+    "compile": "workstar-compile --all src .workstar/generated --css public/workstar.css",
+    "predev": "npm run compile",
+    "dev": "node scripts/dev.mjs",
     "types": "wrangler types worker-configuration.d.ts --include-runtime false",
-    "check": "npm run types && tsc --noEmit",
+    "check": "npm run compile && npm run types && tsc --noEmit",
     "deploy": "npm run check && wrangler deploy"
   },
   "dependencies": {
-    "workstar": "0.1.0-alpha.5",
-    "workstar-router": "0.1.0-alpha.0",
-    "workstar-app": "0.1.0-alpha.2"
+    "workstar": "0.1.0",
+    "workstar-router": "0.1.0",
+    "workstar-app": "0.1.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260911.1",
+    "workstar-compiler": "0.1.0",
     "typescript": "^6.0.3",
     "wrangler": "^4.130.0"
   }

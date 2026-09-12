@@ -1,6 +1,6 @@
 # workstar-app
 
-Experimental Fetch-native HTTP layer for Workstar. It combines the separate `workstar-router` package with `workstar/server` to render pages and dispatch standard HTML form POSTs. `workstar` is a peer dependency: install one compatible copy of the core in the application so template identity remains shared. It has no Cloudflare-specific dependency; a Worker can call `app.fetch(request, env)` directly.
+Fetch-native HTTP layer for Workstar. It combines the separate `workstar-router` package with `workstar/server` to render pages and dispatch standard HTML form POSTs. `workstar` is a peer dependency: install one compatible copy of the core in the application so template identity remains shared. It has no Cloudflare-specific dependency; a Worker can call `app.fetch(request, env)` directly.
 
 ```ts
 import { html } from 'workstar';

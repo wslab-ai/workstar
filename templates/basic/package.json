@@ -5,14 +5,18 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "check": "tsc --noEmit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check": "workstar-compile --all src .workstar/generated --css .workstar/styles.css && tsc --noEmit",
     "build": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {
-    "workstar": "0.1.0-alpha.2"
+    "workstar": "0.1.0"
   },
   "devDependencies": {
+    "workstar-compiler": "0.1.0",
+    "prettier": "^3.8.3",
     "typescript": "^6.0.3",
     "vite": "^8.0.16"
   }

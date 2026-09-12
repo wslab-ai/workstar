@@ -1,0 +1,7 @@
+<main>
+  <h1>Contact</h1>
+  <form method="post">
+    <label>Your name <input name="name" required maxlength="80" /></label>
+    <button type="submit">Send</button>
+  </form>
+</main>

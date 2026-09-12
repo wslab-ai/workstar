@@ -4,8 +4,8 @@
     "packages/*",
     "templates/worker"
   ],
-  "version": "0.1.0-alpha.5",
-  "description": "An experimental, small reactive UI framework for the web.",
+  "version": "0.1.0",
+  "description": "A small reactive UI framework for the web.",
   "type": "module",
   "license": "MIT",
   "author": "Workstar Lab <hello@workstarlab.com>",
@@ -35,7 +35,9 @@
     "templates/worker/package.json",
     "templates/worker/public/style.css",
     "templates/worker/README.md",
+    "templates/worker/scripts/dev.mjs",
     "templates/worker/src/index.ts",
+    "templates/worker/src/views",
     "templates/worker/tsconfig.json",
     "templates/worker/wrangler.jsonc",
     "README.md",
@@ -57,6 +59,7 @@
   "scripts": {
     "dev": "vite examples",
     "build": "tsc -p tsconfig.build.json",
+    "build:packages": "npm run build && npm run build --workspace workstar-router && npm run build --workspace workstar-app && npm run build --workspace workstar-compiler",
     "prepare": "npm run build",
     "check": "tsc --noEmit",
     "test": "vitest run --exclude 'packages/**'",
@@ -64,11 +67,13 @@
     "format": "prettier --write .",
     "size": "node scripts/check-size.js",
     "verify:starter": "node scripts/verify-starter.js",
+    "verify:packaged-starter": "node scripts/verify-packaged-starter.js",
     "verify:hydration": "npm run build && node scripts/verify-hydration.js",
     "verify:router": "npm run check --workspace workstar-router && npm run test --workspace workstar-router && npm run build --workspace workstar-router",
     "verify:app": "npm run check --workspace workstar-app && npm run test --workspace workstar-app && npm run build --workspace workstar-app",
+    "verify:compiler": "npm run check --workspace workstar-compiler && npm run test --workspace workstar-compiler && npm run build --workspace workstar-compiler",
     "verify:worker": "npm run check --workspace workstar-worker-starter && node scripts/verify-worker.js",
-    "verify": "npm run format:check && npm run check && npm test && npm run build && npm run size && npm run verify:router && npm run verify:app && npm run verify:worker && npm pack --dry-run"
+    "verify": "npm run format:check && npm run check && npm test && npm run build && npm run size && npm run verify:hydration && npm run verify:router && npm run verify:app && npm run verify:compiler && npm run verify:starter && npm run verify:worker && npm run verify:packaged-starter && npm pack --dry-run"
   },
   "publishConfig": {
     "access": "public"

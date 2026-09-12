@@ -1,10 +1,12 @@
-import { html } from 'workstar';
 import {
   createApp,
   FormBodyError,
   readFormDataWithinLimit,
   redirect,
 } from 'workstar-app';
+import { render as homeView } from '../.workstar/generated/views/home.js';
+import { render as contactView } from '../.workstar/generated/views/contact.js';
+import { render as thanksView } from '../.workstar/generated/views/thanks.js';
 
 const app = createApp<Env>({
   routes: [
@@ -16,14 +18,8 @@ const app = createApp<Env>({
         title: 'Workstar Worker starter',
         description:
           'An accessible, server-rendered Workstar page on Cloudflare Workers.',
-        stylesheets: ['/style.css'],
-        content: html`<main>
-          <h1>Ready to build.</h1>
-          <p>
-            This page is rendered on the server and works without JavaScript.
-          </p>
-          <a href="/contact">Contact us</a>
-        </main>`,
+        stylesheets: ['/style.css', '/workstar.css'],
+        content: homeView({}),
       }),
     },
     {
@@ -32,15 +28,8 @@ const app = createApp<Env>({
       page: () => ({
         lang: 'en',
         title: 'Contact',
-        stylesheets: ['/style.css'],
-        content: html`<main>
-          <h1>Contact</h1>
-          <form method="post">
-            <label
-              >Your name <input name="name" required maxlength="80" /></label
-            ><button type="submit">Send</button>
-          </form>
-        </main>`,
+        stylesheets: ['/style.css', '/workstar.css'],
+        content: contactView({}),
       }),
       action: async ({ request }) => {
         let form: FormData;
@@ -69,11 +58,8 @@ const app = createApp<Env>({
       page: () => ({
         lang: 'en',
         title: 'Thank you',
-        stylesheets: ['/style.css'],
-        content: html`<main>
-          <h1>Thank you.</h1>
-          <a href="/">Back to home</a>
-        </main>`,
+        stylesheets: ['/style.css', '/workstar.css'],
+        content: thanksView({}),
       }),
     },
   ],

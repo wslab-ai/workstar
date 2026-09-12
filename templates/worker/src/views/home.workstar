@@ -1,0 +1,13 @@
+<main>
+  <h1>Ready to build.</h1>
+  <p class="intro">
+    This page is rendered on the server and works without JavaScript.
+  </p>
+  <a href="/contact">Contact us</a>
+</main>
+
+<style>
+  .intro {
+    max-width: 45ch;
+  }
+</style>

@@ -1,0 +1,18 @@
+<script lang="ts">
+  import Panel from './panel.workstar';
+  import { signal } from 'workstar';
+
+  const count = signal(0);
+
+  function increment() {
+    count.update((current) => current + 1);
+  }
+</script>
+
+<Use component="{Panel}" eyebrow="Workstar">
+  <h1>Build with less ceremony.</h1>
+  <p>Typed views. Reactive state. Native HTML.</p>
+  <button type="button" on:click="{increment}">
+    Clicked {count.value} times
+  </button>
+</Use>

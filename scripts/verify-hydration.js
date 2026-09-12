@@ -57,6 +57,14 @@ try {
       })
       .waitFor();
     await noScriptPage.getByRole('button', { name: 'Count is 0' }).waitFor();
+    const noScriptNotice = noScriptPage.locator('noscript');
+    await noScriptNotice.waitFor({ state: 'visible' });
+    if (
+      (await noScriptNotice.textContent()) !==
+      'Use the email link when scripts are disabled.'
+    ) {
+      throw new Error('Server-rendered no-script notice is missing.');
+    }
   } finally {
     await noScriptContext.close();
   }

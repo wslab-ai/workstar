@@ -1,5 +1,9 @@
 # Workstar starter
 
-Run `npm install`, then `npm run dev`. Run `npm run check` for TypeScript validation and `npm run build` to create the static `dist/` directory for deployment to a static host.
+Run `npm install`, then `npm run dev`. The example page starts at `src/views/app.workstar`, but `views` is only a template convention: place `.workstar` components in any subdirectory of `src` and import them by relative `.workstar` path. Vite compiles those modules in memory during development and build. `npm run check` writes temporary TypeScript modules to the ignored `.workstar/` directory to validate component contracts. Run `npm run format` for TypeScript and `.workstar` files, and `npm run build` to create `dist/` for any static host.
 
-This alpha starter is client-rendered. It does not yet provide server rendering, hydration, routing, or data loading; do not use it for SEO-critical content or forms that must work without JavaScript.
+Put component CSS in a final `<style>` block. Selectors are scoped by default; use `<style global>` only for intentional document-wide rules. Vite updates styles in development and extracts them into production CSS.
+
+The example counter keeps its `signal` and click handler inside `app.workstar`. Each rendered component gets its own state; `main.ts` only mounts it. Put shared state in an imported TypeScript module when components need to share it.
+
+This starter is client-rendered. It does not provide server rendering, hydration, routing, or data loading; use the Worker starter for SEO-critical content or forms that must work without JavaScript.

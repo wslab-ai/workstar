@@ -1,6 +1,6 @@
 # Workstar Router
 
-An experimental isomorphic URL matcher for Workstar applications. It has no DOM dependency and does not intercept links. The same route manifest can choose a server-rendered page and build browser links.
+An isomorphic URL matcher for Workstar applications. It has no DOM dependency and does not intercept links. The same route manifest can choose a server-rendered page and build browser links.
 
 ```ts
 import { createRouter } from 'workstar-router';

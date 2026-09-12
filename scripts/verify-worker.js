@@ -1,9 +1,13 @@
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
-import { resolve } from 'node:path';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 import { chromium } from '@playwright/test';
 
-const project = resolve(import.meta.dirname, '../templates/worker');
+const repository = resolve(import.meta.dirname, '..');
+const temporary = mkdtempSync(join(tmpdir(), 'workstar-worker-starter-'));
+const project = join(temporary, 'demo');
 let worker;
 let browser;
 
@@ -19,7 +23,7 @@ async function availablePort() {
 
 async function waitForWorker(url) {
   for (let attempt = 0; attempt < 100; attempt++) {
-    if (worker.exitCode !== null)
+    if (worker.exitCode !== null || worker.signalCode !== null)
       throw new Error('Worker exited before becoming ready.');
     try {
       if ((await fetch(url)).ok) return;
@@ -31,15 +35,56 @@ async function waitForWorker(url) {
   throw new Error('Timed out waiting for the Worker.');
 }
 
+async function waitForHeading(url, heading) {
+  for (let attempt = 0; attempt < 100; attempt++) {
+    const response = await fetch(url);
+    if (response.ok && (await response.text()).includes(`${heading}</h1>`))
+      return;
+    await new Promise((done) => setTimeout(done, 100));
+  }
+  throw new Error(`Worker did not render the edited heading: ${heading}`);
+}
+
+async function waitForStylesheet(url, expected) {
+  for (let attempt = 0; attempt < 100; attempt++) {
+    const response = await fetch(url);
+    if (response.ok && (await response.text()).includes(expected)) return;
+    await new Promise((done) => setTimeout(done, 100));
+  }
+  throw new Error(`Worker did not serve updated component CSS: ${expected}`);
+}
+
 try {
+  execFileSync(process.execPath, [
+    join(repository, 'bin/workstar.js'),
+    'create',
+    project,
+    '--template',
+    'worker',
+  ]);
+  execFileSync('npm', ['install'], { cwd: project, stdio: 'inherit' });
+  execFileSync('npm', ['run', 'check'], { cwd: project, stdio: 'inherit' });
+  rmSync(join(project, '.workstar'), { recursive: true, force: true });
+
   const port = await availablePort();
   const origin = `http://127.0.0.1:${port}`;
   worker = spawn(
-    'npx',
-    ['wrangler', 'dev', '--local', '--ip', '127.0.0.1', '--port', String(port)],
-    { cwd: project, stdio: 'ignore' },
+    'npm',
+    ['run', 'dev', '--', '--ip', '127.0.0.1', '--port', String(port)],
+    { cwd: project, stdio: 'ignore', detached: true },
   );
   await waitForWorker(origin);
+
+  const sourcePath = join(project, 'src/views/home.workstar');
+  const source = readFileSync(sourcePath, 'utf8');
+  writeFileSync(
+    sourcePath,
+    source
+      .replace('Ready to build.', 'Live editing works.')
+      .replace('max-width: 45ch', 'max-width: 30ch'),
+  );
+  await waitForHeading(origin, 'Live editing works.');
+  await waitForStylesheet(`${origin}/workstar.css`, 'max-width: 30ch');
 
   const stylesheet = await fetch(`${origin}/style.css`);
   if (
@@ -53,7 +98,12 @@ try {
   const context = await browser.newContext({ javaScriptEnabled: false });
   const page = await context.newPage();
   await page.goto(origin);
-  await page.getByRole('heading', { name: 'Ready to build.' }).waitFor();
+  await page.getByRole('heading', { name: 'Live editing works.' }).waitFor();
+  const styled = await page
+    .locator('.intro')
+    .evaluate((element) => getComputedStyle(element).maxWidth);
+  if (styled === 'none')
+    throw new Error('Component CSS was not applied in no-JS SSR.');
   await page.getByRole('link', { name: 'Contact us' }).click();
   await page.getByRole('textbox', { name: 'Your name' }).fill('Ada');
   await page.getByRole('button', { name: 'Send' }).click();
@@ -72,9 +122,13 @@ try {
     );
   }
   process.stdout.write(
-    'Worker assets, SSR, bounded form, and no-JS browser flow passed.\n',
+    'Generated Worker starter, live editing, assets, SSR, bounded form, and no-JS browser flow passed.\n',
   );
 } finally {
   await browser?.close();
-  worker?.kill();
+  if (worker?.pid && worker.exitCode === null && worker.signalCode === null) {
+    if (process.platform === 'win32') worker.kill();
+    else process.kill(-worker.pid, 'SIGTERM');
+  }
+  rmSync(temporary, { recursive: true, force: true });
 }

@@ -1,11 +1,57 @@
-import { isReadable } from './reactivity.js';
+import { isReadable, type Readable } from './reactivity.js';
 
 const templateBrand = Symbol('workstar.template');
 const directiveBrand = Symbol('workstar.directive');
+const repeatBrand = Symbol('workstar.repeat');
 
 export const slotPrefix = 'workstar-slot-';
 export const directivePrefix = 'data-workstar-directive-';
 export const arrayPrefix = 'workstar-array-';
+export const repeatPrefix = 'workstar-repeat-';
+
+export interface Repeat<T> {
+  readonly [repeatBrand]: true;
+  readonly source: Iterable<T> | Readable<Iterable<T>> | (() => Iterable<T>);
+  readonly key: (item: T) => string | number;
+  readonly view: (item: Readable<T>) => unknown;
+}
+
+export function repeat<T>(
+  source: Iterable<T> | Readable<Iterable<T>> | (() => Iterable<T>),
+  key: (item: T) => string | number,
+  view: (item: Readable<T>) => unknown,
+): Repeat<T> {
+  return { [repeatBrand]: true, source, key, view };
+}
+
+export function isRepeat(value: unknown): value is Repeat<unknown> {
+  return typeof value === 'object' && value !== null && repeatBrand in value;
+}
+
+export function repeatItems<T>(
+  block: Repeat<T>,
+): Array<{ key: string | number; item: T }> {
+  const source = resolve(resolve(block.source));
+  if (
+    !source ||
+    typeof (source as Iterable<T>)[Symbol.iterator] !== 'function'
+  ) {
+    throw new TypeError('A repeat source must be iterable.');
+  }
+  const seen = new Set<string | number>();
+  return Array.from(source as Iterable<T>, (item) => {
+    const key = block.key(item);
+    if (
+      (typeof key !== 'string' && typeof key !== 'number') ||
+      (typeof key === 'number' && !Number.isFinite(key))
+    ) {
+      throw new TypeError('A repeat key must be a string or finite number.');
+    }
+    if (seen.has(key)) throw new Error(`Duplicate repeat key: ${String(key)}.`);
+    seen.add(key);
+    return { key, item };
+  });
+}
 
 export interface Template {
   readonly [templateBrand]: true;
@@ -35,7 +81,13 @@ export interface AttributeDirective {
   readonly source: unknown;
 }
 
-export type Directive = EventDirective | AttributeDirective;
+export interface TextareaDirective {
+  readonly [directiveBrand]: true;
+  readonly kind: 'textarea';
+  readonly source: unknown;
+}
+
+export type Directive = EventDirective | AttributeDirective | TextareaDirective;
 
 export function isTemplate(value: unknown): value is Template {
   return typeof value === 'object' && value !== null && templateBrand in value;
@@ -83,4 +135,21 @@ export function attr(name: string, source: unknown): AttributeDirective {
     throw new TypeError('Invalid or unsafe attribute name.');
   }
   return { [directiveBrand]: true, kind: 'attribute', name, source };
+}
+
+export function textareaValue(source: unknown): TextareaDirective {
+  return { [directiveBrand]: true, kind: 'textarea', source };
+}
+
+export function resolveTextareaValue(source: unknown): string {
+  const value = resolve(source);
+  if (value === null || value === undefined || value === false) return '';
+  if (
+    typeof value === 'string' ||
+    typeof value === 'number' ||
+    typeof value === 'bigint'
+  ) {
+    return String(value);
+  }
+  throw new TypeError('Textarea value must be text or a number.');
 }

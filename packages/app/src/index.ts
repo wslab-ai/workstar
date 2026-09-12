@@ -108,7 +108,10 @@ export function createApp<Env, const Name extends string = string>(
           headers: { allow: allowHeader(route) },
         });
       } catch (error) {
-        if (options.onError) return options.onError(error, context);
+        if (options.onError) {
+          const response = await options.onError(error, context);
+          return request.method === 'HEAD' ? withoutBody(response) : response;
+        }
         console.error(
           JSON.stringify({
             message: 'Workstar request failed',
@@ -116,7 +119,10 @@ export function createApp<Env, const Name extends string = string>(
             error: error instanceof Error ? error.message : String(error),
           }),
         );
-        return new Response('Internal server error', { status: 500 });
+        return new Response(
+          request.method === 'HEAD' ? null : 'Internal server error',
+          { status: 500 },
+        );
       }
     },
   };

@@ -17,6 +17,10 @@ describe('project starter', () => {
       expect(
         JSON.parse(readFileSync(join(project, 'package.json'), 'utf8')).name,
       ).toBe('my-app');
+      expect(
+        JSON.parse(readFileSync(join(project, 'package.json'), 'utf8'))
+          .dependencies.workstar,
+      ).toMatch(/^file:/);
       expect(() =>
         execFileSync(process.execPath, [cli, 'create', project], {
           stdio: 'pipe',
@@ -44,6 +48,14 @@ describe('project starter', () => {
       expect(
         JSON.parse(readFileSync(join(project, 'package.json'), 'utf8')).name,
       ).toBe('site-preview');
+      const dependencies = JSON.parse(
+        readFileSync(join(project, 'package.json'), 'utf8'),
+      ).dependencies;
+      expect(Object.values(dependencies)).toEqual([
+        expect.stringMatching(/^file:/),
+        expect.stringMatching(/^file:/),
+        expect.stringMatching(/^file:/),
+      ]);
       expect(readFileSync(join(project, 'wrangler.jsonc'), 'utf8')).toContain(
         '"name": "site-preview"',
       );

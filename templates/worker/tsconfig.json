@@ -10,5 +10,5 @@
     "noUncheckedIndexedAccess": true,
     "noEmit": true
   },
-  "include": ["src", "worker-configuration.d.ts"]
+  "include": ["src", ".workstar/generated", "worker-configuration.d.ts"]
 }

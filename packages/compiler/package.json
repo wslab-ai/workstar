@@ -1,0 +1,57 @@
+{
+  "name": "workstar-compiler",
+  "version": "0.1.0",
+  "description": "Component compiler and Vite plugin for Workstar applications.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Workstar Lab <hello@workstarlab.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wslab-ai/workstar.git",
+    "directory": "packages/compiler"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/src/index.js"
+    },
+    "./vite": {
+      "types": "./dist/src/vite.d.ts",
+      "import": "./dist/src/vite.js"
+    }
+  },
+  "bin": {
+    "workstar-compile": "./bin/workstar-compile.mjs"
+  },
+  "scripts": {
+    "check": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run tests",
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "parse5": "^8.0.0",
+    "postcss": "^8.5.28",
+    "postcss-selector-parser": "^7.1.6",
+    "typescript": "^6.0.3"
+  },
+  "peerDependencies": {
+    "vite": "^8.0.0"
+  },
+  "peerDependenciesMeta": {
+    "vite": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

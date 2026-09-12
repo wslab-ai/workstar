@@ -52,13 +52,36 @@ const source = resolve(
   dirname(fileURLToPath(import.meta.url)),
   `../templates/${templateName ?? 'basic'}`,
 );
+const frameworkRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const developmentPackages = {
+  workstar: frameworkRoot,
+  'workstar-router': resolve(frameworkRoot, 'packages/router'),
+  'workstar-app': resolve(frameworkRoot, 'packages/app'),
+  'workstar-compiler': resolve(frameworkRoot, 'packages/compiler'),
+};
+const checkoutPackagesAvailable = [
+  'workstar-router',
+  'workstar-app',
+  'workstar-compiler',
+].every((name) =>
+  existsSync(resolve(developmentPackages[name], 'package.json')),
+);
 cpSync(source, target, { recursive: true, errorOnExist: true, force: false });
 const manifestPath = resolve(target, 'package.json');
 const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
 manifest.name = packageName;
+if (checkoutPackagesAvailable) {
+  for (const [name, packagePath] of Object.entries(developmentPackages)) {
+    for (const section of ['dependencies', 'devDependencies']) {
+      if (name in (manifest[section] ?? {})) {
+        manifest[section][name] = `file:${packagePath}`;
+      }
+    }
+  }
+}
 writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+renameSync(resolve(target, 'gitignore.txt'), resolve(target, '.gitignore'));
 if (templateName === 'worker') {
-  renameSync(resolve(target, 'gitignore.txt'), resolve(target, '.gitignore'));
   const configPath = resolve(target, 'wrangler.jsonc');
   const config = readFileSync(configPath, 'utf8').replace(
     'workstar-worker-starter',

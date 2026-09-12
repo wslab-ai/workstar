@@ -1,0 +1,19 @@
+<script lang="ts">
+  import type { Template } from 'workstar';
+
+  export interface Props {
+    eyebrow: string;
+    children: Template;
+  }
+</script>
+
+<section class="card">
+  <p class="eyebrow">{eyebrow}</p>
+  {children}
+</section>
+
+<style>
+  .card {
+    --component-css-ready: yes;
+  }
+</style>

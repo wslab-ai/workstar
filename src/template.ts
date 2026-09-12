@@ -1,13 +1,18 @@
 import { normalizeAttributeValue } from './attribute-value.js';
-import { effect } from './reactivity.js';
+import { effect, signal, type Writable } from './reactivity.js';
 import {
   arrayPrefix,
   directivePrefix,
   isDirective,
+  isRepeat,
   isTemplate,
+  repeatItems,
+  repeatPrefix,
   resolve,
+  resolveTextareaValue,
   slotPrefix,
   type Directive,
+  type Repeat,
   type Template,
 } from './template-model.js';
 
@@ -62,6 +67,10 @@ function bindRegion(
   document: Document,
   hydrateInitial = false,
 ): void {
+  if (isRepeat(source)) {
+    bindRepeat(start, end, source, scope, document, hydrateInitial);
+    return;
+  }
   let textNode: Text | undefined;
   let firstRun = hydrateInitial;
   scope.own(
@@ -130,6 +139,143 @@ function findEnd(start: Comment, prefix: string): Comment {
   throw new Error(`Missing hydration marker ${ending}.`);
 }
 
+interface RepeatEntry {
+  readonly start: Comment;
+  readonly end: Comment;
+  readonly scope: Scope;
+  readonly item: Writable<unknown>;
+}
+
+function moveInclusive(entry: RepeatEntry, before: Node): void {
+  if (entry.end.nextSibling === before) return;
+  const fragment = entry.start.ownerDocument.createDocumentFragment();
+  for (let node: Node | null = entry.start; node;) {
+    const next: Node | null = node.nextSibling;
+    fragment.appendChild(node);
+    if (node === entry.end) break;
+    node = next;
+  }
+  before.parentNode?.insertBefore(fragment, before);
+}
+
+function removeInclusive(entry: RepeatEntry): void {
+  entry.scope.dispose();
+  for (let node: Node | null = entry.start; node;) {
+    const next: Node | null = node.nextSibling;
+    node.parentNode?.removeChild(node);
+    if (node === entry.end) break;
+    node = next;
+  }
+}
+
+function bindRepeat(
+  start: Comment,
+  end: Comment,
+  block: Repeat<unknown>,
+  scope: Scope,
+  document: Document,
+  hydrateInitial = false,
+): void {
+  let entries = new Map<string | number, RepeatEntry>();
+  scope.own(() => {
+    for (const entry of entries.values()) entry.scope.dispose();
+    entries.clear();
+  });
+  let hydrating = hydrateInitial;
+  scope.own(
+    effect(() => {
+      const items = repeatItems(block);
+      if (hydrating) {
+        hydrating = false;
+        let cursor = start.nextSibling;
+        const hydrated = new Map<string | number, RepeatEntry>();
+        entries = hydrated;
+        for (const [index, { key, item }] of items.entries()) {
+          if (
+            cursor?.nodeType !== Node.COMMENT_NODE ||
+            (cursor as Comment).data !== `${repeatPrefix}${index}`
+          ) {
+            throw new Error(`Missing hydration repeat item ${index}.`);
+          }
+          const itemStart = cursor as Comment;
+          const itemEnd = findEnd(itemStart, repeatPrefix);
+          const itemScope = new Scope();
+          const itemSignal = signal(item);
+          hydrated.set(key, {
+            start: itemStart,
+            end: itemEnd,
+            scope: itemScope,
+            item: itemSignal,
+          });
+          bindRegion(
+            itemStart,
+            itemEnd,
+            block.view(itemSignal),
+            itemScope,
+            document,
+            true,
+          );
+          cursor = itemEnd.nextSibling;
+        }
+        if (cursor !== end)
+          throw new Error('Hydration repeat length mismatch.');
+        return;
+      }
+
+      const next = new Map<string | number, RepeatEntry>();
+      try {
+        for (const { key, item } of items) {
+          const existing = entries.get(key);
+          if (existing) {
+            existing.item.value = item;
+            next.set(key, existing);
+            continue;
+          }
+          const itemScope = new Scope();
+          const itemSignal = signal(item);
+          const itemStart = document.createComment(
+            `${repeatPrefix}${next.size}`,
+          );
+          const itemEnd = document.createComment(
+            `/${repeatPrefix}${next.size}`,
+          );
+          const fragment = document.createDocumentFragment();
+          fragment.append(itemStart, itemEnd);
+          const created: RepeatEntry = {
+            start: itemStart,
+            end: itemEnd,
+            scope: itemScope,
+            item: itemSignal,
+          };
+          next.set(key, created);
+          bindRegion(
+            itemStart,
+            itemEnd,
+            block.view(itemSignal),
+            itemScope,
+            document,
+          );
+          end.parentNode?.insertBefore(fragment, end);
+        }
+        for (const [key, entry] of entries) {
+          if (!next.has(key)) removeInclusive(entry);
+        }
+        let before: Node = end;
+        for (const entry of [...next.values()].reverse()) {
+          moveInclusive(entry, before);
+          before = entry.start;
+        }
+        entries = next;
+      } catch (error) {
+        for (const [key, entry] of next) {
+          if (!entries.has(key)) removeInclusive(entry);
+        }
+        throw error;
+      }
+    }),
+  );
+}
+
 function collectBindings(
   first: Node | null,
   stop: Node | null,
@@ -184,7 +330,7 @@ function hydrateTemplate(
     if (isDirective(value)) {
       const element = directives.get(index);
       if (!element) throw new Error(`Missing hydration directive ${index}.`);
-      bindDirective(element, value, scope);
+      bindDirective(element, value, scope, true);
       element.removeAttribute(`${directivePrefix}${index}`);
     } else {
       const region = slots.get(index);
@@ -201,6 +347,10 @@ function hydrateValue(
   scope: Scope,
   document: Document,
 ): void {
+  if (isRepeat(value)) {
+    bindRepeat(start, end, value, scope, document, true);
+    return;
+  }
   if (isTemplate(value)) {
     hydrateTemplate(value, start.nextSibling, end, scope, document);
     return;
@@ -260,6 +410,7 @@ function bindDirective(
   element: Element,
   directive: Directive,
   scope: Scope,
+  hydrating = false,
 ): void {
   if (directive.kind === 'event') {
     element.addEventListener(
@@ -273,6 +424,31 @@ function bindDirective(
         directive.listener,
         directive.options,
       ),
+    );
+    return;
+  }
+  if (directive.kind === 'textarea') {
+    if (!(element instanceof HTMLTextAreaElement)) {
+      throw new TypeError(
+        'Textarea value directive requires a textarea element.',
+      );
+    }
+    let initial = true;
+    scope.own(
+      effect(() => {
+        const text = resolveTextareaValue(directive.source);
+        if (initial && hydrating) {
+          if (element.defaultValue !== text) {
+            throw new Error('Hydration textarea value mismatch.');
+          }
+          if (element.value !== element.defaultValue) {
+            initial = false;
+            return;
+          }
+        }
+        element.value = text;
+        initial = false;
+      }),
     );
     return;
   }

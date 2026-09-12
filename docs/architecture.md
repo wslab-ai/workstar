@@ -19,6 +19,11 @@ workstar-router     ─────► no Workstar or DOM dependency
 
 `src/server.ts` renders escaped HTML and deterministic slot markers without a DOM. `hydrate()` attaches to those markers, preserves the initial server DOM, rejects mismatched dynamic content, and then uses the same reactive bindings as `mount()`. The server module has no dependency on the DOM module. A Chromium proof checks that a server-rendered button keeps its identity while becoming interactive.
 
+`packages/compiler` is an optional build-time package. It compiles restricted
+`.workstar` components into typed TypeScript modules. The Vite integration transforms
+imports in memory; the CLI recursively compiles or watches arbitrary directories
+and writes to a separate, ignored output directory. Its Node.js and parser
+dependencies do not enter the browser runtime.
 `bin/workstar.js` scaffolds `templates/basic` (Vite static app) or `templates/worker` (SSR Cloudflare Worker). Neither the CLI nor the runtime imports a starter. Cloudflare dependencies live only in the Worker template, not in the core or `workstar-app`.
 
 `packages/router` is a separate package in the same repository. It owns shared URL matching and link generation, not DOM rendering or request handling. `packages/app` composes it with DOM-free SSR in a Fetch-native handler; it owns method dispatch, document metadata, status codes, and redirects, not platform bindings or application-specific form validation. Native page loads remain the default. Optional client transitions can be added later without coupling the reactive core to navigation.
@@ -26,10 +31,13 @@ workstar-router     ─────► no Workstar or DOM dependency
 ## Influences and deliberate differences
 
 - [Vue's reactive refs and computed values](https://vuejs.org/guide/extras/reactivity-in-depth.html) inform the state API; Workstar uses only shallow signals for now, not deep reactive proxies.
-- [Svelte's compiled DOM updates](https://svelte.dev/) inform the goal, but Workstar has no compiler or Svelte compatibility layer.
+- [Svelte's compiled DOM updates](https://svelte.dev/) inform the goal; Workstar's compiler is an original, deliberately smaller component language.
 - [Lit's tagged-template expressions](https://lit.dev/docs/templates/overview/) inform the HTML API; Workstar adds direct signal tracking and local cleanup scopes.
 
-The runtime avoids a virtual DOM and a compiler in the first release. This keeps the starter small, but it means there is no compile-time optimization or complete template syntax checking. We will only add a compiler if benchmarks and real applications show a material benefit.
+The runtime avoids a virtual DOM. The compiler is separate and
+currently lowers components to the shared template runtime rather than emitting
+optimized DOM instructions. Component composition, scoped styles, and measured
+build/runtime performance remain release gates.
 
 ## Acceptance gates
 
@@ -39,4 +47,4 @@ The runtime avoids a virtual DOM and a compiler in the first release. This keeps
 4. The HTTP layer and Worker template work locally, but are not evidence of full SvelteKit parity. Accessible form controls, list reconciliation, server-only boundary tests, and complete-site browser coverage are still prerequisites for replacing critical pages.
 5. The Workstar Lab migration must keep server-rendered content, metadata, locales, contact delivery and uploads, no-JavaScript form submission, and Cloudflare deployment working before a cutover.
 
-The first alpha is not a claim of parity with Vue, Svelte, or their ecosystems. Benchmarking must use repeatable browser workloads rather than marketing statements.
+The initial 0.1 release is not a claim of parity with larger frameworks or their ecosystems. Benchmarking must use repeatable browser workloads rather than marketing statements.

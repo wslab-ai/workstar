@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { html } from 'workstar';
 import { createApp, redirect, renderDocument } from '../src/index.js';
 
@@ -116,6 +116,68 @@ describe('Fetch-native application', () => {
   });
 });
 
+describe('error responses', () => {
+  const failing = createApp({
+    routes: [
+      {
+        name: 'broken',
+        path: '/broken',
+        page: () => {
+          throw new Error('Private server detail');
+        },
+      },
+    ],
+    onError: () =>
+      renderDocument({
+        lang: 'en',
+        title: '500',
+        status: 500,
+        content: html`<main>Safe error page</main>`,
+      }),
+  });
+
+  it('renders a safe error page and strips its body from HEAD responses', async () => {
+    const get = await failing.fetch(
+      new Request('https://example.test/broken'),
+      {},
+    );
+    expect(get.status).toBe(500);
+    expect(await get.text()).toContain('Safe error page');
+
+    const head = await failing.fetch(
+      new Request('https://example.test/broken', { method: 'HEAD' }),
+      {},
+    );
+    expect(head.status).toBe(500);
+    expect(await head.text()).toBe('');
+  });
+
+  it('never includes a body for an unhandled HEAD failure', async () => {
+    const unhandled = createApp({
+      routes: [
+        {
+          name: 'broken',
+          path: '/broken',
+          page: () => {
+            throw new Error('Server detail');
+          },
+        },
+      ],
+    });
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const response = await unhandled.fetch(
+        new Request('https://example.test/broken', { method: 'HEAD' }),
+        {},
+      );
+      expect(response.status).toBe(500);
+      expect(await response.text()).toBe('');
+    } finally {
+      log.mockRestore();
+    }
+  });
+});
+
 describe('document boundaries', () => {
   it('escapes metadata and supports canonical, hreflang, and JSON-LD', async () => {
     const response = renderDocument({
@@ -131,6 +193,19 @@ describe('document boundaries', () => {
         },
         { kind: 'link', rel: 'alternate', hreflang: 'en', href: '/en' },
         {
+          kind: 'link',
+          rel: 'icon',
+          href: '/icon.png',
+          type: 'image/png',
+          sizes: '96x96',
+        },
+        {
+          kind: 'script',
+          src: 'https://example.test/challenge.js',
+          async: true,
+          defer: true,
+        },
+        {
           kind: 'json-ld',
           value: { name: '</script><script>alert(1)</script>' },
         },
@@ -142,6 +217,12 @@ describe('document boundaries', () => {
     expect(page).toContain('content="A &quot;description&quot;"');
     expect(page).toContain('href="https://example.test/a?x=1&amp;y=2"');
     expect(page).toContain('hreflang="en"');
+    expect(page).toContain(
+      '<link rel="icon" href="/icon.png" type="image/png" sizes="96x96">',
+    );
+    expect(page).toContain(
+      '<script src="https://example.test/challenge.js" async defer></script>',
+    );
     expect(page).toContain('\\u003c/script>');
     expect(page).not.toContain('</script><script>alert');
   });
@@ -158,5 +239,13 @@ describe('document boundaries', () => {
     expect(() =>
       renderDocument({ lang: 'en" onclick="x', title: '', content: '' }),
     ).toThrow(/BCP 47/);
+    expect(() =>
+      renderDocument({
+        lang: 'en',
+        title: 'Unsafe',
+        content: '',
+        head: [{ kind: 'script', src: 'javascript:alert(1)' }],
+      }),
+    ).toThrow(/HTTP/);
   });
 });
