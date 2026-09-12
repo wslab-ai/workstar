@@ -1,0 +1,41 @@
+{
+  "Workstar component": {
+    "prefix": "ws-component",
+    "body": [
+      "<script lang=\"ts\">",
+      "  export interface Props {",
+      "    ${1:title}: ${2:string};",
+      "  }",
+      "</script>",
+      "",
+      "<${3:section}>",
+      "  $0",
+      "</${3:section}>"
+    ],
+    "description": "Create a typed Workstar component"
+  },
+  "Workstar conditional": {
+    "prefix": "ws-if",
+    "body": ["<If when=\"{${1:condition}}\">", "  $0", "</If>"],
+    "description": "Render content when a reactive path is truthy"
+  },
+  "Workstar each": {
+    "prefix": "ws-each",
+    "body": [
+      "<Each each=\"{${1:items}}\" as=\"${2:item}\" key=\"${3:id}\">",
+      "  $0",
+      "</Each>"
+    ],
+    "description": "Render a keyed collection"
+  },
+  "Workstar component use": {
+    "prefix": "ws-use",
+    "body": ["<Use component=\"{${1:Component}}\">", "  $0", "</Use>"],
+    "description": "Render an imported Workstar component"
+  },
+  "Workstar scoped style": {
+    "prefix": "ws-style",
+    "body": ["<style>", "  ${1:.component} {", "    $0", "  }", "</style>"],
+    "description": "Add component-scoped CSS"
+  }
+}

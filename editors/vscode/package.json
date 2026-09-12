@@ -1,0 +1,68 @@
+{
+  "name": "workstar-language",
+  "displayName": "Workstar Language Support",
+  "description": "Syntax highlighting and editing support for .workstar components.",
+  "version": "0.1.0",
+  "private": true,
+  "publisher": "wslab-ai",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wslab-ai/workstar.git",
+    "directory": "editors/vscode"
+  },
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Snippets"
+  ],
+  "keywords": [
+    "workstar",
+    "components",
+    "typescript",
+    "html"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "workstar",
+        "aliases": [
+          "Workstar",
+          "workstar"
+        ],
+        "extensions": [
+          ".workstar"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "workstar",
+        "scopeName": "text.html.workstar",
+        "path": "./syntaxes/workstar.tmLanguage.json",
+        "embeddedLanguages": {
+          "meta.embedded.block.typescript": "typescript",
+          "meta.embedded.block.css": "css"
+        }
+      }
+    ],
+    "snippets": [
+      {
+        "language": "workstar",
+        "path": "./snippets/workstar.json"
+      }
+    ]
+  },
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "package": "node -e \"require('node:fs').mkdirSync('dist', { recursive: true })\" && vsce package --no-dependencies --out dist/workstar-language-0.1.0.vsix"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^3.9.2",
+    "vscode-oniguruma": "^2.0.1",
+    "vscode-textmate": "^9.3.2"
+  }
+}

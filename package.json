@@ -72,8 +72,9 @@
     "verify:router": "npm run check --workspace workstar-router && npm run test --workspace workstar-router && npm run build --workspace workstar-router",
     "verify:app": "npm run check --workspace workstar-app && npm run test --workspace workstar-app && npm run build --workspace workstar-app",
     "verify:compiler": "npm run check --workspace workstar-compiler && npm run test --workspace workstar-compiler && npm run build --workspace workstar-compiler",
+    "verify:vscode": "npm ci --prefix editors/vscode && npm test --prefix editors/vscode && npm run package --prefix editors/vscode",
     "verify:worker": "npm run check --workspace workstar-worker-starter && node scripts/verify-worker.js",
-    "verify": "npm run format:check && npm run check && npm test && npm run build && npm run size && npm run verify:hydration && npm run verify:router && npm run verify:app && npm run verify:compiler && npm run verify:starter && npm run verify:worker && npm run verify:packaged-starter && npm pack --dry-run"
+    "verify": "npm run format:check && npm run check && npm test && npm run build && npm run size && npm run verify:hydration && npm run verify:router && npm run verify:app && npm run verify:compiler && npm run verify:vscode && npm run verify:starter && npm run verify:worker && npm run verify:packaged-starter && npm pack --dry-run"
   },
   "publishConfig": {
     "access": "public"

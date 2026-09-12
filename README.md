@@ -33,6 +33,10 @@ npm run dev
 
 The Worker template is also an example, not a production contact service: its form validates input and redirects, but does not send email.
 
+For VS Code, the [Workstar language extension](editors/vscode/README.md) provides
+`.workstar` syntax highlighting, embedded TypeScript/CSS scopes, editing pairs,
+and snippets. It can currently be installed from a locally built VSIX.
+
 ## Low-level core API
 
 ```ts

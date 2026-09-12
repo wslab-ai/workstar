@@ -1,0 +1,93 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Workstar",
+  "scopeName": "text.html.workstar",
+  "patterns": [
+    { "include": "#script" },
+    { "include": "#style" },
+    { "include": "#control" },
+    { "include": "#event" },
+    { "include": "#expression" },
+    { "include": "text.html.basic" }
+  ],
+  "repository": {
+    "script": {
+      "name": "meta.tag.script.workstar",
+      "begin": "(<)(script)(?=\\s|>)",
+      "beginCaptures": {
+        "1": { "name": "punctuation.definition.tag.begin.html" },
+        "2": { "name": "entity.name.tag.script.html" }
+      },
+      "end": "(</)(script)(\\s*>)",
+      "endCaptures": {
+        "1": { "name": "punctuation.definition.tag.begin.html" },
+        "2": { "name": "entity.name.tag.script.html" },
+        "3": { "name": "punctuation.definition.tag.end.html" }
+      },
+      "patterns": [
+        {
+          "begin": ">",
+          "beginCaptures": {
+            "0": { "name": "punctuation.definition.tag.end.html" }
+          },
+          "end": "(?=</script\\s*>)",
+          "contentName": "meta.embedded.block.typescript",
+          "patterns": [{ "include": "source.ts" }]
+        }
+      ]
+    },
+    "style": {
+      "name": "meta.tag.style.workstar",
+      "begin": "(<)(style)(?=\\s|>)",
+      "beginCaptures": {
+        "1": { "name": "punctuation.definition.tag.begin.html" },
+        "2": { "name": "entity.name.tag.style.html" }
+      },
+      "end": "(</)(style)(\\s*>)",
+      "endCaptures": {
+        "1": { "name": "punctuation.definition.tag.begin.html" },
+        "2": { "name": "entity.name.tag.style.html" },
+        "3": { "name": "punctuation.definition.tag.end.html" }
+      },
+      "patterns": [
+        {
+          "begin": ">",
+          "beginCaptures": {
+            "0": { "name": "punctuation.definition.tag.end.html" }
+          },
+          "end": "(?=</style\\s*>)",
+          "contentName": "meta.embedded.block.css",
+          "patterns": [{ "include": "source.css" }]
+        }
+      ]
+    },
+    "control": {
+      "name": "meta.tag.control.workstar",
+      "begin": "(<\\/?)(If|Else|Each|Use)(?=\\s|/?>)",
+      "beginCaptures": {
+        "1": { "name": "punctuation.definition.tag.begin.html" },
+        "2": { "name": "entity.name.tag.control.workstar" }
+      },
+      "end": "/?>",
+      "endCaptures": { "0": { "name": "punctuation.definition.tag.end.html" } },
+      "patterns": [
+        { "include": "#expression" },
+        { "include": "#event" },
+        { "include": "text.html.basic" }
+      ]
+    },
+    "event": {
+      "match": "\\bon:[A-Za-z][\\w-]*(?=\\s*=)",
+      "name": "entity.other.attribute-name.event.workstar"
+    },
+    "expression": {
+      "match": "(\\{)([A-Za-z_$][\\w$]*(?:\\.[A-Za-z_$][\\w$]*|\\[\\d+\\])*)(\\})",
+      "name": "meta.embedded.inline.workstar",
+      "captures": {
+        "1": { "name": "punctuation.section.embedded.begin.workstar" },
+        "2": { "name": "variable.other.readwrite.workstar" },
+        "3": { "name": "punctuation.section.embedded.end.workstar" }
+      }
+    }
+  }
+}

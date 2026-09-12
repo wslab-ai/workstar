@@ -1,0 +1,29 @@
+{
+  "comments": {
+    "blockComment": ["<!--", "-->"]
+  },
+  "brackets": [
+    ["<", ">"],
+    ["{", "}"],
+    ["[", "]"],
+    ["(", ")"]
+  ],
+  "autoClosingPairs": [
+    { "open": "{", "close": "}" },
+    { "open": "[", "close": "]" },
+    { "open": "(", "close": ")" },
+    { "open": "\"", "close": "\"", "notIn": ["string", "comment"] },
+    { "open": "'", "close": "'", "notIn": ["string", "comment"] }
+  ],
+  "surroundingPairs": [
+    ["{", "}"],
+    ["[", "]"],
+    ["(", ")"],
+    ["\"", "\""],
+    ["'", "'"]
+  ],
+  "indentationRules": {
+    "increaseIndentPattern": "^.*<(?!(?:area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)\\b)[A-Za-z][\\w:-]*(?:\\s[^<>]*)?>(?!.*<\\/[A-Za-z][\\w:-]*>).*$",
+    "decreaseIndentPattern": "^\\s*<\\/[A-Za-z][\\w:-]*\\s*>"
+  }
+}
