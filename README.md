@@ -54,6 +54,8 @@ import { hydrate } from 'workstar';
 `hydrate()` preserves the initial DOM and attaches reactive behavior to server markers. It throws if dynamic server content differs from the client view; treat such a mismatch as an application bug, not a signal to silently discard server HTML.
 Dynamic expressions inside `<script>`, `<style>`, `<textarea>`, and `<title>` are deliberately rejected because browser HTML parsing does not preserve hydration markers there. Keep metadata and script data in the server document layer; use native form controls and attributes for editable values.
 
+For multi-page apps, [`workstar-router`](packages/router/README.md) is an optional, separately versioned URL matcher. The core does not import it. It shares route matching and link generation between server and browser; native links work without JavaScript. A higher-level application layer for request handling and form submissions is still planned.
+
 Components are ordinary functions returning `html` templates. Interpolate a function to make a conditional or calculated region reactive:
 
 ```ts
