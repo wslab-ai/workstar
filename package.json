@@ -1,6 +1,6 @@
 {
   "name": "workstar",
-  "version": "0.1.0-alpha.0",
+  "version": "0.1.0-alpha.1",
   "description": "An experimental, small reactive UI framework for the web.",
   "type": "module",
   "license": "MIT",
@@ -31,7 +31,7 @@
     "LICENSE"
   ],
   "bin": {
-    "workstar": "./bin/workstar.js"
+    "workstar": "bin/workstar.js"
   },
   "exports": {
     ".": {

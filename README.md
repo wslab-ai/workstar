@@ -6,16 +6,14 @@ Workstar is an original project inspired by the developer experience of Svelte a
 
 ## Start a project
 
-After the `workstar` package is published to npm:
+The package is currently an alpha release on npm:
 
 ```sh
-npx workstar create my-app
+npx workstar@alpha create my-app
 cd my-app
 npm install
 npm run dev
 ```
-
-Until then, clone this repository and run `node bin/workstar.js create my-app`; the generated starter refers to the unpublished npm version, so install this repository as a local or Git dependency before running it.
 
 The starter uses Vite. `npm run build` produces a static `dist/` directory, ready for any static host. There is no mandatory vendor account or server runtime.
 
