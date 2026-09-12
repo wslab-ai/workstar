@@ -1,0 +1,65 @@
+{
+  "name": "workstar",
+  "version": "0.1.0-alpha.0",
+  "description": "An experimental, small reactive UI framework for the web.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Workstar Lab <hello@workstarlab.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wslab-ai/workstar.git"
+  },
+  "homepage": "https://github.com/wslab-ai/workstar#readme",
+  "bugs": {
+    "url": "https://github.com/wslab-ai/workstar/issues"
+  },
+  "keywords": [
+    "framework",
+    "reactivity",
+    "signals",
+    "dom",
+    "typescript"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "templates",
+    "README.md",
+    "LICENSE"
+  ],
+  "bin": {
+    "workstar": "./bin/workstar.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "dev": "vite examples",
+    "build": "tsc -p tsconfig.build.json",
+    "prepare": "npm run build",
+    "check": "tsc --noEmit",
+    "test": "vitest run",
+    "format:check": "prettier --check .",
+    "format": "prettier --write .",
+    "size": "node scripts/check-size.js",
+    "verify:starter": "node scripts/verify-starter.js",
+    "verify": "npm run format:check && npm run check && npm test && npm run build && npm run size && npm pack --dry-run"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.60.0",
+    "happy-dom": "^20.8.0",
+    "prettier": "^3.8.3",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16",
+    "vitest": "^4.1.11"
+  }
+}

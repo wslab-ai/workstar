@@ -1,0 +1,51 @@
+:root {
+  color: #151515;
+  background: #f9f7f2;
+  font-family: system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+}
+
+.card {
+  box-sizing: border-box;
+  display: grid;
+  gap: 1rem;
+  max-width: 42rem;
+  min-height: 100vh;
+  align-content: center;
+  margin-inline: auto;
+  padding: 2rem;
+}
+
+.eyebrow {
+  color: #a43a21;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+h1 {
+  font-size: clamp(2.5rem, 8vw, 5rem);
+  line-height: 1;
+  margin: 0;
+}
+
+button {
+  width: fit-content;
+  min-height: 2.75rem;
+  padding: 0.75rem 1rem;
+  border: 0;
+  background: #ff4f2f;
+  color: #151515;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+button:focus-visible {
+  outline: 3px solid #151515;
+  outline-offset: 3px;
+}
