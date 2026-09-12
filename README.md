@@ -35,7 +35,8 @@ The Worker template is also an example, not a production contact service: its fo
 
 For VS Code, the [Workstar language extension](editors/vscode/README.md) provides
 `.workstar` syntax highlighting, embedded TypeScript/CSS scopes, editing pairs,
-and snippets. It can currently be installed from a locally built VSIX.
+and snippets. Download the [VSIX release](https://github.com/wslab-ai/workstar/releases/tag/vscode-v0.1.0)
+to install it in VS Code.
 
 ## Low-level core API
 
