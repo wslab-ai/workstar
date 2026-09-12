@@ -17,6 +17,18 @@ npm run dev
 
 The starter uses Vite. `npm run build` produces a static `dist/` directory, ready for any static host. There is no mandatory vendor account or server runtime.
 
+For a server-rendered Cloudflare Worker with static assets and standard HTML form actions:
+
+```sh
+npx workstar@alpha create my-worker --template worker
+cd my-worker
+npm install
+npm run check
+npm run dev
+```
+
+The Worker template is also an example, not a production contact service: its form validates input and redirects, but does not send email.
+
 ## Core API
 
 ```ts
@@ -54,7 +66,7 @@ import { hydrate } from 'workstar';
 `hydrate()` preserves the initial DOM and attaches reactive behavior to server markers. It throws if dynamic server content differs from the client view; treat such a mismatch as an application bug, not a signal to silently discard server HTML.
 Dynamic expressions inside `<script>`, `<style>`, `<textarea>`, and `<title>` are deliberately rejected because browser HTML parsing does not preserve hydration markers there. Keep metadata and script data in the server document layer; use native form controls and attributes for editable values.
 
-For multi-page apps, [`workstar-router`](packages/router/README.md) is an optional, separately versioned URL matcher. The core does not import it. It shares route matching and link generation between server and browser; native links work without JavaScript. A higher-level application layer for request handling and form submissions is still planned.
+For multi-page apps, [`workstar-router`](packages/router/README.md) is an optional, separately versioned URL matcher. The core does not import it. It shares route matching and link generation between server and browser; native links work without JavaScript. [`workstar-app`](packages/app/README.md) is a separate Fetch-native layer for SSR documents, GET/HEAD pages, POST actions, and typed metadata. It works on Cloudflare Workers without adding Worker dependencies to the core.
 
 Components are ordinary functions returning `html` templates. Interpolate a function to make a conditional or calculated region reactive:
 
@@ -69,6 +81,6 @@ Nested reactive subscriptions and listeners are cleaned up when their region dis
 
 ## Status and limits
 
-This is `0.1.0-alpha`: suitable for experiments, **not** a production replacement for Vue, Svelte, or SvelteKit. Low-level SSR and hydration exist, but there is no production routing, form-action, deployment, async-component, devtools, or compiler layer yet. The existing Workstar Lab site will stay on SvelteKit until those capabilities and accessibility/performance tests are mature. Do not put essential SEO content or no-JavaScript forms in a Workstar-only view yet.
+This is `0.1.0-alpha`: suitable for experiments, **not** a production replacement for Vue, Svelte, or SvelteKit. SSR, hydration, optional routing, a small HTTP app layer, and a Worker starter exist. Missing production gates include real-site route/content parity, contact delivery and uploads, locale SEO, accessible components, comprehensive browser tests, performance comparison, and a rollback plan. The existing Workstar Lab site stays on SvelteKit until those gates pass. The Worker starter can serve essential SEO content and no-JavaScript forms, but it does not implement the site's production contact flow.
 
-Run `npm run verify` for formatting, types, tests, build, a gzip size budget, and pack checks. Run `npm run verify:hydration` for a real-browser SSR/hydration test, and `npm run verify:starter` to create and browser-test a starter against the local package. The [architecture notes](docs/architecture.md) explain the boundaries and release gates. MIT licensed.
+Run `npm run verify` for formatting, types, tests, build, a gzip size budget, Worker type checks, and pack checks. Run `npm run verify:hydration` for a real-browser SSR/hydration test, and `npm run verify:starter` to create and browser-test the Vite starter against the local package. The [architecture notes](docs/architecture.md) explain the boundaries and release gates. MIT licensed.

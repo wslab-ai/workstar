@@ -1,9 +1,10 @@
 {
   "name": "workstar",
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "templates/worker"
   ],
-  "version": "0.1.0-alpha.2",
+  "version": "0.1.0-alpha.5",
   "description": "An experimental, small reactive UI framework for the web.",
   "type": "module",
   "license": "MIT",
@@ -29,7 +30,14 @@
   "files": [
     "bin",
     "dist",
-    "templates",
+    "templates/basic",
+    "templates/worker/gitignore.txt",
+    "templates/worker/package.json",
+    "templates/worker/public/style.css",
+    "templates/worker/README.md",
+    "templates/worker/src/index.ts",
+    "templates/worker/tsconfig.json",
+    "templates/worker/wrangler.jsonc",
     "README.md",
     "LICENSE"
   ],
@@ -58,7 +66,9 @@
     "verify:starter": "node scripts/verify-starter.js",
     "verify:hydration": "npm run build && node scripts/verify-hydration.js",
     "verify:router": "npm run check --workspace workstar-router && npm run test --workspace workstar-router && npm run build --workspace workstar-router",
-    "verify": "npm run format:check && npm run check && npm test && npm run build && npm run size && npm run verify:router && npm pack --dry-run"
+    "verify:app": "npm run check --workspace workstar-app && npm run test --workspace workstar-app && npm run build --workspace workstar-app",
+    "verify:worker": "npm run check --workspace workstar-worker-starter && node scripts/verify-worker.js",
+    "verify": "npm run format:check && npm run check && npm test && npm run build && npm run size && npm run verify:router && npm run verify:app && npm run verify:worker && npm pack --dry-run"
   },
   "publishConfig": {
     "access": "public"

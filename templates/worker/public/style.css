@@ -1,0 +1,47 @@
+:root {
+  color-scheme: light;
+  font-family: system-ui, sans-serif;
+  line-height: 1.5;
+  background: #f9f7f2;
+  color: #191919;
+}
+
+body {
+  margin: 0;
+}
+
+main {
+  max-width: 48rem;
+  margin-inline: auto;
+  padding: clamp(1.5rem, 6vw, 5rem);
+}
+
+form {
+  display: grid;
+  gap: 1rem;
+}
+
+label {
+  display: grid;
+  gap: 0.35rem;
+}
+
+input,
+button {
+  font: inherit;
+  padding: 0.75rem;
+}
+
+button {
+  border: 0;
+  color: white;
+  background: #191919;
+  cursor: pointer;
+}
+
+a:focus-visible,
+input:focus-visible,
+button:focus-visible {
+  outline: 3px solid #ff4d2e;
+  outline-offset: 3px;
+}

@@ -18,7 +18,14 @@ export interface EventDirective {
   readonly kind: 'event';
   readonly event: string;
   readonly listener: EventListenerOrEventListenerObject;
-  readonly options?: AddEventListenerOptions | boolean;
+  readonly options?: EventListenerOptions | boolean;
+}
+
+export interface EventListenerOptions {
+  readonly capture?: boolean;
+  readonly once?: boolean;
+  readonly passive?: boolean;
+  readonly signal?: AbortSignal;
 }
 
 export interface AttributeDirective {
@@ -54,7 +61,7 @@ export function html(
 export function on(
   event: string,
   listener: EventListenerOrEventListenerObject,
-  options?: AddEventListenerOptions | boolean,
+  options?: EventListenerOptions | boolean,
 ): EventDirective {
   if (!/^[a-z][a-z0-9:-]*$/i.test(event))
     throw new TypeError('Invalid event name.');

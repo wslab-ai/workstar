@@ -1,0 +1,38 @@
+{
+  "name": "workstar-app",
+  "version": "0.1.0-alpha.2",
+  "description": "A small Fetch-native server layer for Workstar applications.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Workstar Lab <hello@workstarlab.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wslab-ai/workstar.git",
+    "directory": "packages/app"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "check": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run tests",
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "workstar-router": "0.1.0-alpha.0"
+  },
+  "peerDependencies": {
+    "workstar": ">=0.1.0-alpha.3 <0.2.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
