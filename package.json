@@ -1,6 +1,9 @@
 {
   "name": "workstar",
-  "version": "0.1.0-alpha.1",
+  "workspaces": [
+    "packages/*"
+  ],
+  "version": "0.1.0-alpha.2",
   "description": "An experimental, small reactive UI framework for the web.",
   "type": "module",
   "license": "MIT",
@@ -37,6 +40,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "import": "./dist/server.js"
     }
   },
   "scripts": {
@@ -44,12 +51,14 @@
     "build": "tsc -p tsconfig.build.json",
     "prepare": "npm run build",
     "check": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "vitest run --exclude 'packages/**'",
     "format:check": "prettier --check .",
     "format": "prettier --write .",
     "size": "node scripts/check-size.js",
     "verify:starter": "node scripts/verify-starter.js",
-    "verify": "npm run format:check && npm run check && npm test && npm run build && npm run size && npm pack --dry-run"
+    "verify:hydration": "npm run build && node scripts/verify-hydration.js",
+    "verify:router": "npm run check --workspace workstar-router && npm run test --workspace workstar-router && npm run build --workspace workstar-router",
+    "verify": "npm run format:check && npm run check && npm test && npm run build && npm run size && npm run verify:router && npm pack --dry-run"
   },
   "publishConfig": {
     "access": "public"

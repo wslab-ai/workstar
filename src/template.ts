@@ -1,33 +1,17 @@
-import { effect, isReadable } from './reactivity.js';
+import { normalizeAttributeValue } from './attribute-value.js';
+import { effect } from './reactivity.js';
+import {
+  arrayPrefix,
+  directivePrefix,
+  isDirective,
+  isTemplate,
+  resolve,
+  slotPrefix,
+  type Directive,
+  type Template,
+} from './template-model.js';
 
-const templateBrand = Symbol('workstar.template');
-const directiveBrand = Symbol('workstar.directive');
-const slotPrefix = 'workstar-slot-';
-const directivePrefix = 'data-workstar-directive-';
 const activeMounts = new WeakMap<Element, () => void>();
-
-export interface Template {
-  readonly [templateBrand]: true;
-  readonly strings: TemplateStringsArray;
-  readonly values: readonly unknown[];
-}
-
-interface EventDirective {
-  readonly [directiveBrand]: true;
-  readonly kind: 'event';
-  readonly event: string;
-  readonly listener: EventListenerOrEventListenerObject;
-  readonly options?: AddEventListenerOptions | boolean;
-}
-
-interface AttributeDirective {
-  readonly [directiveBrand]: true;
-  readonly kind: 'attribute';
-  readonly name: string;
-  readonly source: unknown;
-}
-
-type Directive = EventDirective | AttributeDirective;
 
 class Scope {
   readonly #disposers: Array<() => void> = [];
@@ -39,20 +23,6 @@ class Scope {
   dispose(): void {
     for (const dispose of this.#disposers.splice(0).reverse()) dispose();
   }
-}
-
-function isTemplate(value: unknown): value is Template {
-  return typeof value === 'object' && value !== null && templateBrand in value;
-}
-
-function isDirective(value: unknown): value is Directive {
-  return typeof value === 'object' && value !== null && directiveBrand in value;
-}
-
-function resolve(source: unknown): unknown {
-  if (isReadable(source)) return source.value;
-  if (typeof source === 'function') return (source as () => unknown)();
-  return source;
 }
 
 function render(value: unknown, document: Document, scope: Scope): Node {
@@ -90,11 +60,29 @@ function bindRegion(
   source: unknown,
   scope: Scope,
   document: Document,
+  hydrateInitial = false,
 ): void {
   let textNode: Text | undefined;
+  let firstRun = hydrateInitial;
   scope.own(
     effect(() => {
       const value = resolve(source);
+      if (firstRun) {
+        firstRun = false;
+        const hydratedScope = new Scope();
+        try {
+          hydrateValue(value, start, end, hydratedScope, document);
+          textNode =
+            start.nextSibling?.nodeType === Node.TEXT_NODE &&
+            start.nextSibling.nextSibling === end
+              ? (start.nextSibling as Text)
+              : undefined;
+        } catch (error) {
+          hydratedScope.dispose();
+          throw error;
+        }
+        return () => hydratedScope.dispose();
+      }
       if (
         textNode &&
         start.nextSibling === textNode &&
@@ -121,31 +109,149 @@ function bindRegion(
   );
 }
 
-function setAttribute(element: Element, name: string, value: unknown): void {
+function findEnd(start: Comment, prefix: string): Comment {
+  const marker = start.data;
+  if (!marker.startsWith(prefix)) throw new Error('Invalid hydration marker.');
+  const ending = `/${marker}`;
+  let depth = 0;
+  for (
+    let sibling = start.nextSibling;
+    sibling;
+    sibling = sibling.nextSibling
+  ) {
+    if (sibling.nodeType !== Node.COMMENT_NODE) continue;
+    const comment = sibling as Comment;
+    if (comment.data === marker) depth++;
+    if (comment.data === ending) {
+      if (depth === 0) return comment;
+      depth--;
+    }
+  }
+  throw new Error(`Missing hydration marker ${ending}.`);
+}
+
+function collectBindings(
+  first: Node | null,
+  stop: Node | null,
+  slots: Map<number, [Comment, Comment]>,
+  directives: Map<number, Element>,
+): void {
+  for (let node = first; node && node !== stop; node = node.nextSibling) {
+    if (node.nodeType === Node.COMMENT_NODE) {
+      const comment = node as Comment;
+      if (comment.data.startsWith(slotPrefix)) {
+        const index = Number(comment.data.slice(slotPrefix.length));
+        if (!Number.isInteger(index) || slots.has(index))
+          throw new Error('Invalid or duplicate hydration slot.');
+        const end = findEnd(comment, slotPrefix);
+        slots.set(index, [comment, end]);
+        node = end;
+      }
+      continue;
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) continue;
+    const element = node as Element;
+    for (const name of element.getAttributeNames()) {
+      if (!name.startsWith(directivePrefix)) continue;
+      const index = Number(name.slice(directivePrefix.length));
+      if (!Number.isInteger(index) || directives.has(index))
+        throw new Error('Invalid or duplicate hydration directive.');
+      directives.set(index, element);
+    }
+    collectBindings(element.firstChild, null, slots, directives);
+  }
+}
+
+function hydrateTemplate(
+  template: Template,
+  first: Node | null,
+  stop: Node | null,
+  scope: Scope,
+  document: Document,
+): void {
+  const slots = new Map<number, [Comment, Comment]>();
+  const directives = new Map<number, Element>();
+  collectBindings(first, stop, slots, directives);
+  const expectedSlots = template.values.filter((value) => !isDirective(value));
+  const expectedDirectives = template.values.length - expectedSlots.length;
+  if (
+    slots.size !== expectedSlots.length ||
+    directives.size !== expectedDirectives
+  )
+    throw new Error('Hydration markers do not match the template.');
+
+  for (const [index, value] of template.values.entries()) {
+    if (isDirective(value)) {
+      const element = directives.get(index);
+      if (!element) throw new Error(`Missing hydration directive ${index}.`);
+      bindDirective(element, value, scope);
+      element.removeAttribute(`${directivePrefix}${index}`);
+    } else {
+      const region = slots.get(index);
+      if (!region) throw new Error(`Missing hydration slot ${index}.`);
+      bindRegion(region[0], region[1], value, scope, document, true);
+    }
+  }
+}
+
+function hydrateValue(
+  value: unknown,
+  start: Comment,
+  end: Comment,
+  scope: Scope,
+  document: Document,
+): void {
+  if (isTemplate(value)) {
+    hydrateTemplate(value, start.nextSibling, end, scope, document);
+    return;
+  }
+  if (Array.isArray(value)) {
+    let cursor = start.nextSibling;
+    for (const [index, child] of value.entries()) {
+      if (
+        cursor?.nodeType !== Node.COMMENT_NODE ||
+        (cursor as Comment).data !== `${arrayPrefix}${index}`
+      ) {
+        throw new Error(`Missing hydration array item ${index}.`);
+      }
+      const itemStart = cursor as Comment;
+      const itemEnd = findEnd(itemStart, arrayPrefix);
+      hydrateValue(resolve(child), itemStart, itemEnd, scope, document);
+      cursor = itemEnd.nextSibling;
+    }
+    if (cursor !== end) throw new Error('Hydration array length mismatch.');
+    return;
+  }
   if (value === null || value === undefined || value === false) {
-    element.removeAttribute(name);
+    if (start.nextSibling !== end)
+      throw new Error('Hydration content mismatch.');
     return;
   }
   if (
-    typeof value !== 'string' &&
-    typeof value !== 'number' &&
-    typeof value !== 'boolean'
+    typeof value === 'string' ||
+    typeof value === 'number' ||
+    typeof value === 'bigint'
   ) {
-    throw new TypeError(
-      `Attribute ${name} must resolve to a string, number, or boolean.`,
-    );
+    const expected = String(value);
+    const node = start.nextSibling;
+    if (expected === '' && node === end) return;
+    if (
+      node?.nodeType !== Node.TEXT_NODE ||
+      node.nextSibling !== end ||
+      (node as Text).data !== expected
+    ) {
+      throw new Error('Hydration text mismatch.');
+    }
+    return;
   }
-  const text = value === true ? '' : String(value);
-  if (/^(href|src|action|formaction|xlink:href)$/i.test(name)) {
-    let protocol: string;
-    try {
-      protocol = new URL(text, 'https://workstar.invalid').protocol;
-    } catch {
-      throw new TypeError(`Invalid URL for attribute ${name}.`);
-    }
-    if (!['http:', 'https:', 'mailto:', 'tel:'].includes(protocol)) {
-      throw new TypeError(`Unsafe URL for attribute ${name}.`);
-    }
+  throw new TypeError('Unsupported hydration value.');
+}
+
+function setAttribute(element: Element, name: string, value: unknown): void {
+  const text = normalizeAttributeValue(name, value);
+  if (text === null) {
+    element.removeAttribute(name);
+    return;
   }
   element.setAttribute(name, text);
 }
@@ -239,40 +345,6 @@ function renderTemplate(
   return fragment;
 }
 
-export function html(
-  strings: TemplateStringsArray,
-  ...values: unknown[]
-): Template {
-  return { [templateBrand]: true, strings, values };
-}
-
-export function on(
-  event: string,
-  listener: EventListenerOrEventListenerObject,
-  options?: AddEventListenerOptions | boolean,
-): EventDirective {
-  if (!/^[a-z][a-z0-9:-]*$/i.test(event))
-    throw new TypeError('Invalid event name.');
-  return {
-    [directiveBrand]: true,
-    kind: 'event',
-    event,
-    listener,
-    ...(options === undefined ? {} : { options }),
-  };
-}
-
-export function attr(name: string, source: unknown): AttributeDirective {
-  if (
-    !/^[a-z_:][a-z0-9_:.\-]*$/i.test(name) ||
-    /^on/i.test(name) ||
-    /^srcdoc$/i.test(name)
-  ) {
-    throw new TypeError('Invalid or unsafe attribute name.');
-  }
-  return { [directiveBrand]: true, kind: 'attribute', name, source };
-}
-
 export function mount(host: Element, content: unknown): () => void {
   activeMounts.get(host)?.();
   const document = host.ownerDocument;
@@ -291,6 +363,45 @@ export function mount(host: Element, content: unknown): () => void {
   const dispose = () => {
     if (!mounted) return;
     mounted = false;
+    activeMounts.delete(host);
+    scope.dispose();
+    host.replaceChildren();
+  };
+  activeMounts.set(host, dispose);
+  return dispose;
+}
+
+export function hydrate(host: Element, content: unknown): () => void {
+  if (activeMounts.has(host))
+    throw new Error('Host already has an active Workstar view.');
+  const start = host.firstChild;
+  const end = host.lastChild;
+  if (
+    start?.nodeType !== Node.COMMENT_NODE ||
+    (start as Comment).data !== 'workstar-root' ||
+    end?.nodeType !== Node.COMMENT_NODE ||
+    (end as Comment).data !== '/workstar-root'
+  ) {
+    throw new Error('Missing Workstar server-rendered root markers.');
+  }
+  const scope = new Scope();
+  try {
+    bindRegion(
+      start as Comment,
+      end as Comment,
+      content,
+      scope,
+      host.ownerDocument,
+      true,
+    );
+  } catch (error) {
+    scope.dispose();
+    throw error;
+  }
+  let active = true;
+  const dispose = () => {
+    if (!active) return;
+    active = false;
     activeMounts.delete(host);
     scope.dispose();
     host.replaceChildren();

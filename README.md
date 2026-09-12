@@ -1,6 +1,6 @@
 # Workstar
 
-Workstar is an **experimental** TypeScript UI framework for small browser applications. It combines explicit reactive state with declarative HTML templates and updates only the affected DOM regions. It has no runtime dependencies, virtual DOM, or component compiler.
+Workstar is an **experimental** TypeScript UI framework for small applications. It combines explicit reactive state with declarative HTML templates and updates only the affected DOM regions. It has no runtime dependencies, virtual DOM, or component compiler.
 
 Workstar is an original project inspired by the developer experience of Svelte and Vue; it is not a fork, wrapper, or drop-in replacement for either one. The existing [`@workstarlab/ui`](https://github.com/wslab-ai/ui) package remains a separate Svelte 5 design system.
 
@@ -41,6 +41,19 @@ const dispose = mount(
 
 `signal()` provides writable state. `computed()` derives a lazy read-only value. `effect()` runs on changes and returns a disposer. Synchronous writes are coalesced into one microtask; `await tick()` waits for DOM effects after a write. `html` interpolations insert strings as **text**, never as HTML. Use `attr(name, value)` for dynamic attributes and `on(event, handler)` for listeners, both inside an opening tag.
 
+Server rendering is available as a low-level API. Build the same view with the same initial data on server and client:
+
+```ts
+import { renderToString } from 'workstar/server';
+// On the server: <div id="app">${renderToString(view)}</div>
+
+import { hydrate } from 'workstar';
+// In the browser: hydrate(document.querySelector('#app')!, view);
+```
+
+`hydrate()` preserves the initial DOM and attaches reactive behavior to server markers. It throws if dynamic server content differs from the client view; treat such a mismatch as an application bug, not a signal to silently discard server HTML.
+Dynamic expressions inside `<script>`, `<style>`, `<textarea>`, and `<title>` are deliberately rejected because browser HTML parsing does not preserve hydration markers there. Keep metadata and script data in the server document layer; use native form controls and attributes for editable values.
+
 Components are ordinary functions returning `html` templates. Interpolate a function to make a conditional or calculated region reactive:
 
 ```ts
@@ -54,6 +67,6 @@ Nested reactive subscriptions and listeners are cleaned up when their region dis
 
 ## Status and limits
 
-This is `0.1.0-alpha`: suitable for experiments, **not** a production replacement for Vue, Svelte, or SvelteKit. It currently supports browser-side mounting only. It does not yet include SSR, hydration, routing, async components, form actions, devtools, or a compiler. The existing Workstar Lab site will stay on SvelteKit until those capabilities and accessibility/performance tests are mature. Do not put essential SEO content or no-JavaScript forms in a Workstar-only view yet.
+This is `0.1.0-alpha`: suitable for experiments, **not** a production replacement for Vue, Svelte, or SvelteKit. Low-level SSR and hydration exist, but there is no production routing, form-action, deployment, async-component, devtools, or compiler layer yet. The existing Workstar Lab site will stay on SvelteKit until those capabilities and accessibility/performance tests are mature. Do not put essential SEO content or no-JavaScript forms in a Workstar-only view yet.
 
-Run `npm run verify` for formatting, types, tests, build, a gzip size budget, and pack checks. Run `npm run verify:starter` to create, build, and browser-test a starter against the local package. The [architecture notes](docs/architecture.md) explain the boundaries and release gates. MIT licensed.
+Run `npm run verify` for formatting, types, tests, build, a gzip size budget, and pack checks. Run `npm run verify:hydration` for a real-browser SSR/hydration test, and `npm run verify:starter` to create and browser-test a starter against the local package. The [architecture notes](docs/architecture.md) explain the boundaries and release gates. MIT licensed.
