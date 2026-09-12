@@ -16,9 +16,9 @@ reactivity     ─────► no browser or package dependency
 
 ## Influences and deliberate differences
 
-- Vue's explicit refs/computed values inform the state API; Workstar uses only shallow signals for now, not deep reactive proxies.
-- Svelte's minimal browser work informs the goal, but Workstar has no compiler or Svelte compatibility layer.
-- Lit's tagged-template expressions inform the HTML API; Workstar adds direct signal tracking and local cleanup scopes.
+- [Vue's reactive refs and computed values](https://vuejs.org/guide/extras/reactivity-in-depth.html) inform the state API; Workstar uses only shallow signals for now, not deep reactive proxies.
+- [Svelte's compiled DOM updates](https://svelte.dev/) inform the goal, but Workstar has no compiler or Svelte compatibility layer.
+- [Lit's tagged-template expressions](https://lit.dev/docs/templates/overview/) inform the HTML API; Workstar adds direct signal tracking and local cleanup scopes.
 
 The runtime avoids a virtual DOM and a compiler in the first release. This keeps the starter small, but it means there is no compile-time optimization, template syntax checking, or hydration yet. We will only add a compiler if benchmarks and real applications show a material benefit.
 
