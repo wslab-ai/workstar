@@ -1,5 +1,7 @@
 node_modules/**
 tests/**
 dist/**
+src/**
+tsconfig.json
 package-lock.json
 .vscodeignore

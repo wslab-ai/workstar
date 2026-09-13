@@ -12,6 +12,13 @@ workstar-compile --all src .workstar/generated --css .workstar/styles.css
 
 For Vite, import `workstar` from `workstar-compiler/vite` and add `workstar()` to `plugins`. Vite compiles imported components in memory; the CLI is for explicit output and type checking.
 
+During Vite development, the compiler adds state identities for direct local
+`signal()` declarations. Pass a stable `HotContext` from `workstar/dev` to a
+root component when accepting Vite updates, as shown in the static starter.
+Production output does not include this instrumentation. The compiler maps
+script statements and the markup entry point back to authored source in Vite;
+individual markup expressions are not mapped yet.
+
 Inside `<script lang="ts">`, imports and an optional exported `Props` type define the component contract. Top-level `const`, `let`, and function declarations create state and behavior for each component instance; import `signal` from `workstar` for reactive local state. Keep module-wide shared state in an imported TypeScript module when sharing is intentional.
 
 `<noscript>` accepts static text only. Put links and localized expressions elsewhere in the page; nested markup would be parsed as raw text and dynamic markers cannot hydrate reliably.

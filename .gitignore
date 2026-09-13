@@ -1,5 +1,6 @@
 node_modules/
 dist/
+editors/vscode/out/
 coverage/
 *.tgz
 **/.wrangler/

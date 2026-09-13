@@ -47,10 +47,8 @@ export function normalizeControls(source: string): NormalizedControls {
       source.indexOf(controlAttribute),
     );
   }
-  const scriptEnd = /<\/script\s*>/i.exec(source);
-  const start = scriptEnd ? scriptEnd.index + scriptEnd[0].length : 0;
-  let result = source.slice(0, start);
-  let cursor = start;
+  let result = '';
+  let cursor = 0;
   let count = 0;
   const stack: Array<{ name: string; offset: number }> = [];
   const replacements: Replacement[] = [];
@@ -89,8 +87,9 @@ export function normalizeControls(source: string): NormalizedControls {
     if (!name || !controlNames.has(name)) {
       result += tag;
       cursor = end + 1;
-      if (/^<textarea(?=[\s>])/i.test(tag)) {
-        const closing = /<\/textarea\s*>/gi;
+      const rawTextTag = /^<(script|style|textarea)(?=[\s>])/i.exec(tag)?.[1];
+      if (rawTextTag) {
+        const closing = new RegExp(`</${rawTextTag}\\s*>`, 'gi');
         closing.lastIndex = cursor;
         const close = closing.exec(source);
         if (close) {

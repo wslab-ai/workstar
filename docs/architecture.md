@@ -34,17 +34,18 @@ dependencies do not enter the browser runtime.
 - [Svelte's compiled DOM updates](https://svelte.dev/) inform the goal; Workstar's compiler is an original, deliberately smaller component language.
 - [Lit's tagged-template expressions](https://lit.dev/docs/templates/overview/) inform the HTML API; Workstar adds direct signal tracking and local cleanup scopes.
 
-The runtime avoids a virtual DOM. The compiler is separate and
-currently lowers components to the shared template runtime rather than emitting
-optimized DOM instructions. Component composition, scoped styles, and measured
-build/runtime performance remain release gates.
+The runtime avoids a virtual DOM. The compiler is separate and currently lowers
+components to the shared template runtime rather than emitting optimized DOM
+instructions. Component composition and scoped styles are available; measured
+build/runtime performance remains an optimization gate, not an established speed
+claim.
 
 ## Acceptance gates
 
 1. Strict TypeScript checks, deterministic unit tests, and a production starter build must pass.
 2. The runtime must remain below 8 KiB gzip as a regression budget; this is a size constraint, not a speed claim.
-3. Browser tests must cover real interaction, keyboard focus, text safety, remounting, and cleanup before a stable release.
-4. The HTTP layer and Worker template work locally, but are not evidence of full SvelteKit parity. Accessible form controls, list reconciliation, server-only boundary tests, and complete-site browser coverage are still prerequisites for replacing critical pages.
-5. The Workstar Lab migration must keep server-rendered content, metadata, locales, contact delivery and uploads, no-JavaScript form submission, and Cloudflare deployment working before a cutover.
+3. Browser tests cover real interaction, keyboard focus, text safety, remounting, and cleanup. Keep those checks in the release gate.
+4. The HTTP layer and Worker starter alone do not prove website parity. The deployed Workstar Lab site has separate route, locale, SEO, form, accessibility, and responsive browser checks; re-run them for site releases.
+5. The Workstar Lab site must keep server-rendered content, metadata, locales, contact delivery and uploads, an accessible no-JavaScript contact path, and deployment working. Its Turnstile-protected form requires JavaScript; the no-JavaScript path is email, not a bypass around the challenge.
 
 The initial 0.1 release is not a claim of parity with larger frameworks or their ecosystems. Benchmarking must use repeatable browser workloads rather than marketing statements.

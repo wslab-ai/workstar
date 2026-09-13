@@ -19,6 +19,18 @@
     "body": ["<If when=\"{${1:condition}}\">", "  $0", "</If>"],
     "description": "Render content when a reactive path is truthy"
   },
+  "Workstar conditional with fallback": {
+    "prefix": "ws-if-else",
+    "body": [
+      "<If when=\"{${1:condition}}\">",
+      "  ${2:Content}",
+      "  <Else>",
+      "    $0",
+      "  </Else>",
+      "</If>"
+    ],
+    "description": "Render alternate content when a condition is false"
+  },
   "Workstar each": {
     "prefix": "ws-each",
     "body": [
@@ -37,5 +49,21 @@
     "prefix": "ws-style",
     "body": ["<style>", "  ${1:.component} {", "    $0", "  }", "</style>"],
     "description": "Add component-scoped CSS"
+  },
+  "Workstar reactive state": {
+    "prefix": "ws-signal",
+    "body": [
+      "import { signal } from 'workstar';",
+      "const ${1:count} = signal(${2:0});",
+      "$0"
+    ],
+    "description": "Import a signal and create reactive local state"
+  },
+  "Workstar event handler": {
+    "prefix": "ws-click",
+    "body": [
+      "<button type=\"button\" on:click=\"{${1:handleClick}}\">${2:Click me}</button>$0"
+    ],
+    "description": "Add an accessible button with a Workstar click handler"
   }
 }

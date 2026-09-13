@@ -1,0 +1,23 @@
+{
+  "name": "workstar-node-starter",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "compile": "workstar-compile --all src .workstar/generated --css public/workstar.css",
+    "check": "npm run compile && tsc --noEmit",
+    "build": "npm run compile && tsc",
+    "start": "node dist/src/server.js",
+    "dev": "node scripts/dev.mjs"
+  },
+  "dependencies": {
+    "workstar": "0.1.1",
+    "workstar-router": "0.1.1",
+    "workstar-app": "0.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.0",
+    "typescript": "^6.0.3",
+    "workstar-compiler": "0.1.1"
+  }
+}

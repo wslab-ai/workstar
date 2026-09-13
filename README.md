@@ -7,7 +7,7 @@ Workstar is developed independently. Its reactive core, component compiler, opti
 ## Start a project
 
 ```sh
-npx workstar@0.1.0 create my-app
+npx workstar@0.1.1 create my-app
 cd my-app
 npm install
 npm run dev
@@ -24,7 +24,7 @@ any static host. There is no mandatory vendor account or server runtime.
 For a server-rendered Cloudflare Worker with static assets and standard HTML form actions:
 
 ```sh
-npx workstar@0.1.0 create my-worker --template worker
+npx workstar@0.1.1 create my-worker --template worker
 cd my-worker
 npm install
 npm run check
@@ -33,10 +33,23 @@ npm run dev
 
 The Worker template is also an example, not a production contact service: its form validates input and redirects, but does not send email.
 
+For a server-rendered Node.js application without a platform-specific runtime:
+
+```sh
+npx workstar@0.1.1 create my-node-app --template node
+cd my-node-app
+npm install
+npm run dev
+```
+
+The Node starter uses the same Fetch-native application contract. Its example form
+also validates and redirects without storing or sending data. Run `npm run build &&
+npm start` for the compiled server.
+
 For VS Code, the [Workstar language extension](editors/vscode/README.md) provides
-`.workstar` syntax highlighting, embedded TypeScript/CSS scopes, editing pairs,
-and snippets. Download the [VSIX release](https://github.com/wslab-ai/workstar/releases/tag/vscode-v0.1.0)
-to install it in VS Code.
+`.workstar` syntax highlighting, embedded TypeScript/CSS scopes, compiler
+diagnostics, import navigation, editing pairs, and snippets. Install
+`wslab-ai.workstar-language` from the VS Code Extensions view.
 
 ## Low-level core API
 
@@ -92,4 +105,4 @@ Nested reactive subscriptions and listeners are cleaned up when their region dis
 
 The 0.1 release provides reactive DOM updates, server rendering and hydration, a component compiler, optional URL matching and Fetch-native request handling, and static and server-rendered starters. Native links remain the default; client-side navigation, automatic data loading, authentication, upload storage, and deployment configuration are application responsibilities. The component compiler intentionally accepts a documented subset of component syntax. The Worker starter demonstrates a no-JavaScript form action but does not send email.
 
-Run `npm run verify` for formatting, types, tests, build, a gzip size budget, Worker type checks, and pack checks. Run `npm run verify:hydration` for a real-browser SSR/hydration test, and `npm run verify:starter` to create and browser-test the Vite starter against the local package. The [architecture notes](docs/architecture.md) explain the boundaries and release gates. MIT licensed.
+Run `npm run verify` for formatting, types, tests, build, a gzip size budget, Worker type checks, and pack checks. Run `npm run bench` for repeatable local performance measurements. The [compatibility contract](docs/compatibility.md) states the supported runtimes and development-update limits; the [architecture notes](docs/architecture.md) explain the boundaries and release gates. MIT licensed.

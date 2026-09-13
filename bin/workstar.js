@@ -14,7 +14,7 @@ const [, , command, directory, option, templateName] = process.argv;
 
 if (command === '--help' || command === '-h' || command === undefined) {
   process.stdout.write(
-    'Usage: workstar create <project-directory> [--template basic|worker]\n',
+    'Usage: workstar create <project-directory> [--template basic|node|worker]\n',
   );
   process.exit(command === undefined ? 1 : 0);
 }
@@ -23,11 +23,12 @@ if (
   command !== 'create' ||
   !directory ||
   (option !== undefined && option !== '--template') ||
-  (option === '--template' && !['basic', 'worker'].includes(templateName)) ||
+  (option === '--template' &&
+    !['basic', 'node', 'worker'].includes(templateName)) ||
   (option === undefined && templateName !== undefined)
 ) {
   process.stderr.write(
-    'Expected: workstar create <project-directory> [--template basic|worker]\n',
+    'Expected: workstar create <project-directory> [--template basic|node|worker]\n',
   );
   process.exit(1);
 }

@@ -8,6 +8,7 @@ import oniguruma from 'vscode-oniguruma';
 const { Registry, parseRawGrammar } = textmate;
 
 const require = createRequire(import.meta.url);
+const { findComponentImports } = require('../out/component-imports.js');
 const manifest = JSON.parse(
   readFileSync(new URL('../package.json', import.meta.url), 'utf8'),
 );
@@ -27,6 +28,8 @@ const grammarPath = new URL(
 const grammarSource = readFileSync(grammarPath, 'utf8');
 
 test('the VS Code manifest declares one .workstar language and real embedded scopes', () => {
+  assert.equal(manifest.main, './out/extension.js');
+  assert.ok(manifest.activationEvents.includes('onLanguage:workstar'));
   assert.equal(manifest.contributes.languages[0].id, 'workstar');
   assert.deepEqual(manifest.contributes.languages[0].extensions, ['.workstar']);
   assert.deepEqual(manifest.contributes.grammars[0].embeddedLanguages, {
@@ -37,6 +40,42 @@ test('the VS Code manifest declares one .workstar language and real embedded sco
   assert.ok(
     Object.values(snippets).some((snippet) => snippet.prefix === 'ws-each'),
   );
+  for (const prefix of ['ws-if-else', 'ws-signal', 'ws-click']) {
+    assert.ok(
+      Object.values(snippets).some((snippet) => snippet.prefix === prefix),
+    );
+  }
+});
+
+test('relative component imports expose precise paths for editor navigation', () => {
+  const source = [
+    '<script lang="ts">',
+    "  import Panel from './panel.workstar';",
+    '  import type { Props } from "../shared/card.workstar";',
+    "  import { signal } from 'workstar';",
+    '</script>',
+    '<p>import Fake from "./not-a-link.workstar"</p>',
+  ].join('\n');
+  const imports = findComponentImports(source);
+  assert.deepEqual(
+    imports.map(({ path }) => path),
+    ['./panel.workstar', '../shared/card.workstar'],
+  );
+  for (const { path, start, end } of imports) {
+    assert.equal(source.slice(start, end), path);
+  }
+});
+
+test('the Marketplace and .workstar file icons use a bundled 256px PNG', () => {
+  assert.equal(manifest.icon, 'images/icon.png');
+  assert.deepEqual(manifest.contributes.languages[0].icon, {
+    light: './images/icon.png',
+    dark: './images/icon.png',
+  });
+  const icon = readFileSync(new URL(`../${manifest.icon}`, import.meta.url));
+  assert.equal(icon.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
+  assert.equal(icon.readUInt32BE(16), 256);
+  assert.equal(icon.readUInt32BE(20), 256);
 });
 
 test('the grammar tokenizes script, style, controls, events and path expressions', async () => {

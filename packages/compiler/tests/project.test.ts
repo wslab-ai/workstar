@@ -109,6 +109,26 @@ describe('view directory compilation', () => {
     }
   });
 
+  it('reports a TypeScript syntax error at its authored position in a project build', async () => {
+    const temporary = await mkdtemp(join(tmpdir(), 'workstar-script-error-'));
+    const source = join(temporary, 'src');
+    const output = join(temporary, 'generated');
+    try {
+      await mkdir(source);
+      const view = join(source, 'counter.workstar');
+      await writeFile(
+        view,
+        '<script lang="ts">\nconst count = ;\n</script><p>Count</p>',
+      );
+      await expect(compileViewDirectory(source, output)).rejects.toThrow(
+        `${view}:2:15: Invalid TypeScript in component script:`,
+      );
+      await expect(readdir(output)).rejects.toMatchObject({ code: 'ENOENT' });
+    } finally {
+      await rm(temporary, { recursive: true, force: true });
+    }
+  });
+
   it('mirrors nested views and cleans only obsolete generated modules', async () => {
     const temporary = await mkdtemp(join(tmpdir(), 'workstar-views-'));
     const source = join(temporary, 'ui');

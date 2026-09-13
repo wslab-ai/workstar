@@ -1,10 +1,12 @@
 {
   "name": "workstar-language",
   "displayName": "Workstar Language Support",
-  "description": "Syntax highlighting and editing support for .workstar components.",
-  "version": "0.1.0",
+  "description": "Syntax highlighting, project compiler diagnostics, and editing support for .workstar components.",
+  "version": "0.1.2",
   "private": true,
   "publisher": "wslab-ai",
+  "main": "./out/extension.js",
+  "icon": "images/icon.png",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -14,6 +16,15 @@
   "engines": {
     "vscode": "^1.90.0"
   },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "Syntax highlighting remains available; diagnostics run only after the workspace is trusted."
+    }
+  },
+  "activationEvents": [
+    "onLanguage:workstar"
+  ],
   "categories": [
     "Programming Languages",
     "Snippets"
@@ -35,6 +46,10 @@
         "extensions": [
           ".workstar"
         ],
+        "icon": {
+          "light": "./images/icon.png",
+          "dark": "./images/icon.png"
+        },
         "configuration": "./language-configuration.json"
       }
     ],
@@ -57,11 +72,15 @@
     ]
   },
   "scripts": {
-    "test": "node --test tests/*.test.mjs",
-    "package": "node -e \"require('node:fs').mkdirSync('dist', { recursive: true })\" && vsce package --no-dependencies --out dist/workstar-language-0.1.0.vsix"
+    "build": "tsc --project tsconfig.json",
+    "test": "npm run build && node --test tests/*.test.mjs",
+    "package": "npm run build && node -e \"require('node:fs').mkdirSync('dist', { recursive: true })\" && vsce package --no-dependencies --out dist/workstar-language-0.1.2.vsix"
   },
   "devDependencies": {
+    "@types/node": "^20.19.43",
+    "@types/vscode": "1.90.0",
     "@vscode/vsce": "^3.9.2",
+    "typescript": "^6.0.3",
     "vscode-oniguruma": "^2.0.1",
     "vscode-textmate": "^9.3.2"
   }

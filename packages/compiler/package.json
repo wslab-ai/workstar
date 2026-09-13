@@ -1,6 +1,6 @@
 {
   "name": "workstar-compiler",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Component compiler and Vite plugin for Workstar applications.",
   "type": "module",
   "license": "MIT",
@@ -38,6 +38,7 @@
     "parse5": "^8.0.0",
     "postcss": "^8.5.28",
     "postcss-selector-parser": "^7.1.6",
+    "source-map-js": "^1.2.1",
     "typescript": "^6.0.3"
   },
   "peerDependencies": {

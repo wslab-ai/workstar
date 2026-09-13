@@ -83,9 +83,9 @@ try {
     ),
   );
 
-  for (const template of ['basic', 'worker']) {
+  for (const template of ['basic', 'node', 'worker']) {
     const project = join(temporary, `packed-${template}`);
-    const options = template === 'worker' ? ['--template', template] : [];
+    const options = template === 'basic' ? [] : ['--template', template];
     execFileSync(process.execPath, [
       join(packagedRoot, 'bin/workstar.js'),
       'create',
@@ -94,9 +94,9 @@ try {
     ]);
     const generated = manifest(join(project, 'package.json'));
     const dependencies =
-      template === 'worker'
-        ? ['workstar', 'workstar-router', 'workstar-app', 'workstar-compiler']
-        : ['workstar', 'workstar-compiler'];
+      template === 'basic'
+        ? ['workstar', 'workstar-compiler']
+        : ['workstar', 'workstar-router', 'workstar-app', 'workstar-compiler'];
     for (const name of dependencies) {
       const version = expectedVersions[name];
       const dependency =
@@ -128,7 +128,7 @@ try {
       stdio: 'inherit',
     });
     execFileSync('npm', ['run', 'check'], { cwd: project, stdio: 'inherit' });
-    if (template === 'basic') {
+    if (template === 'basic' || template === 'node') {
       execFileSync('npm', ['run', 'build'], { cwd: project, stdio: 'inherit' });
     } else {
       execFileSync('npm', ['exec', '--', 'wrangler', 'deploy', '--dry-run'], {
@@ -139,7 +139,7 @@ try {
   }
 
   process.stdout.write(
-    'Packed compiler contents and checkout-independent basic/Worker install and build passed.\n',
+    'Packed compiler contents and checkout-independent basic/Node/Worker install and build passed.\n',
   );
 } finally {
   rmSync(temporary, { recursive: true, force: true });

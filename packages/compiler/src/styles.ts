@@ -7,6 +7,17 @@ export interface CompiledStyle {
   scopeAttribute?: string;
 }
 
+export class StyleCompileError extends Error {
+  constructor(
+    message: string,
+    readonly line: number,
+    readonly column: number,
+  ) {
+    super(message);
+    this.name = 'StyleCompileError';
+  }
+}
+
 function scopeSelector(selector: string, attribute: string): string {
   const scopeNode = selectorParser().astSync(`:where([${attribute}])`).first
     ?.first;
@@ -42,25 +53,40 @@ export function compileStyle(
   filename: string,
   global = false,
 ): CompiledStyle {
-  const root = postcss.parse(css, { from: filename });
-  root.walkAtRules((rule) => {
-    if (rule.name === 'import' || rule.name === 'charset') {
-      throw new Error(
-        `${filename}: @${rule.name} belongs in a global stylesheet.`,
+  try {
+    const root = postcss.parse(css, { from: filename });
+    root.walkAtRules((rule) => {
+      if (rule.name === 'import' || rule.name === 'charset') {
+        throw rule.error(`@${rule.name} belongs in a global stylesheet.`);
+      }
+      if (/keyframes$/i.test(rule.name) && !global) {
+        throw rule.error('Put @keyframes in <style global>.');
+      }
+    });
+    if (global) return { css: root.toString().trim() };
+
+    const scopeAttribute = `data-workstar-${createHash('sha256')
+      .update(filename)
+      .digest('hex')
+      .slice(0, 10)}`;
+    root.walkRules((rule) => {
+      try {
+        rule.selector = scopeSelector(rule.selector, scopeAttribute);
+      } catch (error) {
+        throw rule.error(
+          error instanceof Error ? error.message : String(error),
+        );
+      }
+    });
+    return { css: root.toString().trim(), scopeAttribute };
+  } catch (error) {
+    if (error instanceof postcss.CssSyntaxError) {
+      throw new StyleCompileError(
+        error.reason,
+        error.line ?? 1,
+        error.column ?? 1,
       );
     }
-    if (/keyframes$/i.test(rule.name) && !global) {
-      throw new Error(`${filename}: put @keyframes in <style global>.`);
-    }
-  });
-  if (global) return { css: root.toString().trim() };
-
-  const scopeAttribute = `data-workstar-${createHash('sha256')
-    .update(filename)
-    .digest('hex')
-    .slice(0, 10)}`;
-  root.walkRules((rule) => {
-    rule.selector = scopeSelector(rule.selector, scopeAttribute);
-  });
-  return { css: root.toString().trim(), scopeAttribute };
+    throw error;
+  }
 }

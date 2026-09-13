@@ -1,0 +1,4 @@
+node_modules/
+dist/
+.workstar/
+public/workstar.css

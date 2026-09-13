@@ -1,4 +1,4 @@
-# Component authoring decision (draft)
+# Component authoring decision
 
 ## Problem
 
@@ -8,12 +8,12 @@ default authoring format for full pages. Nested `map()` calls obscure the markup
 layout, control flow, and content wiring in one function. Formatting the file does
 not fix that problem.
 
-The current implementation still reparses template markup while mounting and
-replaces ordinary dynamic regions when their value changes. The new `repeat()`
-primitive gives lists keyed identity, but it does not solve static-template caching
-or conditional-region reconciliation. A nicer runtime wrapper around `html` would
-hide these costs, not remove them. Do not migrate production pages or call the
-framework stable until the authoring and update model below is implemented and measured.
+The low-level `html` API still parses markup for each template instance and
+replaces ordinary dynamic regions when their value changes. `repeat()` gives
+lists keyed identity, but does not by itself cache static templates or reconcile
+conditional branches. The `.workstar` compiler is the default authoring path for
+the production Workstar Lab site; these runtime optimization opportunities remain
+separate from the completed authoring migration.
 
 ## Direction
 
@@ -40,8 +40,8 @@ upfront. Low-level `html` remains an escape hatch, not the recommended way to wr
 pages. Runtime-generated JSX templates are rejected as the default because they
 create new markup descriptions during rendering and do not enable static analysis.
 
-The first vertical slice now lives in `packages/compiler`. The Workstar Lab preview
-authors its page and shell views this way. The Vite plugin compiles imported
+The compiler lives in `packages/compiler`. The Workstar Lab site authors its page
+and shell components this way. The Vite plugin compiles imported
 `.workstar` files in memory during development and build, without writing to
 `src`. The CLI also accepts one file, `--all`, or `--watch`; its output mirrors
 nested authored directories in a separate, ignored directory. No folder name
@@ -53,35 +53,32 @@ unique primitive values. Nested `<Use>` content is passed as a typed `children: 
 prop; named slots are not implemented. `<script lang="ts">` accepts imports,
 an optional exported `Props` declaration, and per-instance local variables and
 functions. A component without props infers an empty contract. A final `<style>`
-block is scoped by default; `<style global>` is explicit. This is **not** the final
-component format: expressions are narrow, and there is no complete form/action integration. These are deliberate fail-closed limits while
-the generated SSR and local build path are tested.
+block is scoped by default; `<style global>` is explicit. Expressions remain
+deliberately narrow. Form actions belong to `workstar-app` or the application,
+not to the component language.
 
 Rust is a possible backend for the compiler, not a prerequisite for the component
 contract. Keep the parser/code-generation boundary explicit and measure compile
 time on representative projects before adding native binary distribution. Browser
 runtime performance must be evaluated separately from compiler throughput.
 
-## Acceptance before website migration
+## Cutover evidence and ongoing limits
 
-1. One representative page and one interactive form use the new authoring format.
-2. SSR output, hydration, keyed reordering, escaping, accessibility, no-JavaScript
-   form submission, and 320–2560 px reflow have automated coverage.
-3. A starter project can be created, built, tested, and deployed from a local
-   checkout with documented commands and no unpublished registry dependency.
-4. Compare cold render, update, hydration, client JavaScript, and build output
-   against the existing Svelte site and the current Workstar preview. Set budgets
-   from measurements; do not describe the framework as faster without evidence.
-5. Keep the SvelteKit production site unchanged until route, locale, SEO, form,
-   responsive, and accessibility parity are demonstrated.
-6. Treat developer experience as a release gate: from a fresh scaffold, a developer
-   can add a typed component and stylesheet, plus a page route and server form
-   action in the Worker starter, by editing authored files only. `dev`, `check`,
-   and `build` must work without manually running code generation; an invalid
-   view must report its authored filename and recover after an edit. Keep import
-   paths readable and generated files out of authored view directories and code
-   review. Verify both starters and a representative Workstar Lab page before
-   calling the workflow stable.
+1. The Workstar Lab site is deployed on Workstar. Its
+   [browser and route checks](https://github.com/wslab-ai/workstarlab/tree/main/tests)
+   cover server-rendered content, locales, metadata, accessibility, responsive
+   layouts, contact delivery boundaries, and uploads. Recheck these on every
+   application release; a passing framework starter is not a site parity test.
+2. Framework verification covers SSR/hydration, keyed lists, escaping, browser
+   interactions, and both starters. The Worker starter demonstrates a standard
+   no-JavaScript form action; the production site's Turnstile-protected contact
+   form instead provides an email link when JavaScript is unavailable.
+3. The compiler writes generated files outside authored `src` directories. The
+   Vite plugin transforms imports in memory; `dev`, `check`, and `build` must not
+   require developers to run code generation manually.
+4. Cold render, update, hydration, client JavaScript, and build output should be
+   measured on repeatable workloads before claiming a speed advantage over other
+   frameworks. The current gzip budget is a size gate, not such a comparison.
 
 ## References
 

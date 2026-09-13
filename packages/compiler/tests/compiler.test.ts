@@ -82,6 +82,21 @@ describe('component compiler', () => {
     ).toThrow('@import belongs in a global stylesheet');
   });
 
+  it('does not parse control-like text inside CSS strings', () => {
+    const source = `<p class="label">Ready</p>
+<style>.label::before { content: "<If>"; }</style>`;
+    const { code, css } = compileComponentParts(source);
+    expect(code).toContain('<p class="label"');
+    expect(css).toContain('content: "<If>"');
+  });
+
+  it('does not skip controls before a script-like sequence in a comment', () => {
+    const code = compileComponent(
+      '<If when={ready}><p>Ready</p></If><!-- </script> -->',
+    );
+    expect(code).toContain('ready ? __html');
+  });
+
   it('allows a static view without an empty script block', () => {
     const source = '<main><h1>Welcome</h1></main>';
     expect(compileComponent(source)).toContain(
@@ -556,6 +571,57 @@ export interface Props { value: Readable<string> }
     expect(() => compileComponent(source, 'profile.workstar')).toThrow(
       'profile.workstar:2:6: Unsupported expression: first + last',
     );
+  });
+
+  it('reports the authored position of a TypeScript syntax error', () => {
+    const source = `<script lang="ts">
+const count = ;
+</script>
+<If when={ready}><p>Ready</p></If>`;
+    try {
+      compileComponent(source, 'counter.workstar');
+      throw new Error('Expected invalid TypeScript to fail compilation.');
+    } catch (error) {
+      expect(error).toBeInstanceOf(ComponentCompileError);
+      expect(error).toMatchObject({
+        filename: 'counter.workstar',
+        position: { line: 2, column: 15 },
+      });
+      expect((error as Error).message).toContain(
+        'counter.workstar:2:15: Invalid TypeScript in component script:',
+      );
+    }
+  });
+
+  it('reports the authored position of a component-script rule violation', () => {
+    const source = `<script lang="ts">
+export const shared = true;
+</script><p>Ready</p>`;
+    expect(() => compileComponent(source, 'counter.workstar')).toThrow(
+      'counter.workstar:2:1: Component-local declarations cannot be exported.',
+    );
+  });
+
+  it('reports the authored position of a CSS rule violation', () => {
+    const source = `<If when={ready}><p>Ready</p></If>
+<style>
+@import url("https://example.com/theme.css");
+</style>`;
+    expect(() => compileComponent(source, 'card.workstar')).toThrow(
+      'card.workstar:3:1: @import belongs in a global stylesheet.',
+    );
+    expect(() =>
+      compileComponent(
+        '<p>Ready</p>\n<style>\n.card { color: red;\n</style>',
+        'card.workstar',
+      ),
+    ).toThrow('card.workstar:3:1: Unclosed block');
+    expect(() =>
+      compileComponent(
+        '<p>Ready</p>\n<style>\n:global(body) { margin: 0 }\n</style>',
+        'card.workstar',
+      ),
+    ).toThrow('card.workstar:3:1: Use <style global> for global selectors.');
   });
 
   it('points to the authored control tag when control markup is malformed', () => {
