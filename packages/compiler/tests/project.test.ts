@@ -89,6 +89,26 @@ describe('view directory compilation', () => {
     }
   });
 
+  it('reports the authored file and position from a project build', async () => {
+    const temporary = await mkdtemp(join(tmpdir(), 'workstar-diagnostics-'));
+    const source = join(temporary, 'src');
+    const output = join(temporary, 'generated');
+    try {
+      await mkdir(source);
+      const view = join(source, 'contact.workstar');
+      await writeFile(
+        view,
+        '<If when={ready}>\n  <a onclick="alert(1)">Bad</a>\n</If>',
+      );
+      await expect(compileViewDirectory(source, output)).rejects.toThrow(
+        `${view}:2:3: Use on:event instead of onclick.`,
+      );
+      await expect(readdir(output)).rejects.toMatchObject({ code: 'ENOENT' });
+    } finally {
+      await rm(temporary, { recursive: true, force: true });
+    }
+  });
+
   it('mirrors nested views and cleans only obsolete generated modules', async () => {
     const temporary = await mkdtemp(join(tmpdir(), 'workstar-views-'));
     const source = join(temporary, 'ui');

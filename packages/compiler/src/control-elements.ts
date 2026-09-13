@@ -4,6 +4,24 @@ export const controlAttribute = 'data-workstar-compiler-control';
 export interface NormalizedControls {
   source: string;
   count: number;
+  originalOffset: (normalizedOffset: number) => number;
+}
+
+export class ControlSyntaxError extends Error {
+  constructor(
+    message: string,
+    readonly offset: number,
+  ) {
+    super(message);
+    this.name = 'ControlSyntaxError';
+  }
+}
+
+interface Replacement {
+  generatedStart: number;
+  generatedEnd: number;
+  authoredStart: number;
+  authoredEnd: number;
 }
 
 function tagEnd(source: string, start: number): number {
@@ -18,20 +36,39 @@ function tagEnd(source: string, start: number): number {
       return index;
     }
   }
-  throw new Error('Unclosed HTML tag.');
+  throw new ControlSyntaxError('Unclosed HTML tag.', start);
 }
 
 /** Adapt authoring controls to HTML parser insertion modes, including select and table. */
 export function normalizeControls(source: string): NormalizedControls {
   if (source.includes(controlAttribute)) {
-    throw new Error(`${controlAttribute} is reserved for the compiler.`);
+    throw new ControlSyntaxError(
+      `${controlAttribute} is reserved for the compiler.`,
+      source.indexOf(controlAttribute),
+    );
   }
   const scriptEnd = /<\/script\s*>/i.exec(source);
   const start = scriptEnd ? scriptEnd.index + scriptEnd[0].length : 0;
   let result = source.slice(0, start);
   let cursor = start;
   let count = 0;
-  const stack: string[] = [];
+  const stack: Array<{ name: string; offset: number }> = [];
+  const replacements: Replacement[] = [];
+
+  const appendReplacement = (
+    authoredStart: number,
+    authoredEnd: number,
+    replacement: string,
+  ): void => {
+    const generatedStart = result.length;
+    result += replacement;
+    replacements.push({
+      generatedStart,
+      generatedEnd: result.length,
+      authoredStart,
+      authoredEnd,
+    });
+  };
 
   while (cursor < source.length) {
     const opening = source.indexOf('<', cursor);
@@ -39,7 +76,8 @@ export function normalizeControls(source: string): NormalizedControls {
     result += source.slice(cursor, opening);
     if (source.startsWith('<!--', opening)) {
       const end = source.indexOf('-->', opening + 4);
-      if (end < 0) throw new Error('Unclosed HTML comment.');
+      if (end < 0)
+        throw new ControlSyntaxError('Unclosed HTML comment.', opening);
       result += source.slice(opening, end + 3);
       cursor = end + 3;
       continue;
@@ -65,28 +103,58 @@ export function normalizeControls(source: string): NormalizedControls {
     const closing = match[1] === '/';
     const selfClosing = /\/\s*>$/.test(tag);
     if (closing) {
-      if (stack.pop() !== name) {
-        throw new Error(`Mismatched </${name}> control element.`);
+      if (stack.pop()?.name !== name) {
+        throw new ControlSyntaxError(
+          `Mismatched </${name}> control element.`,
+          opening,
+        );
       }
-      result += '</template>';
+      appendReplacement(opening, end + 1, '</template>');
     } else {
       if (selfClosing && name !== 'Use') {
-        throw new Error(`<${name}> cannot be self-closing.`);
+        throw new ControlSyntaxError(
+          `<${name}> cannot be self-closing.`,
+          opening,
+        );
       }
       const authoredAttributes = tag.slice(match[0].length, -1);
       const attributes = selfClosing
         ? authoredAttributes.replace(/\/\s*$/, '')
         : authoredAttributes;
-      result += `<template ${controlAttribute}="${name}"${attributes}>`;
-      if (selfClosing) result += '</template>';
-      else stack.push(name);
+      appendReplacement(
+        opening,
+        end + 1,
+        `<template ${controlAttribute}="${name}"${attributes}>${selfClosing ? '</template>' : ''}`,
+      );
+      if (!selfClosing) stack.push({ name, offset: opening });
       count++;
     }
     cursor = end + 1;
   }
   result += source.slice(cursor);
   if (stack.length > 0) {
-    throw new Error(`Unclosed <${stack.at(-1)}> control element.`);
+    const unclosed = stack.at(-1)!;
+    throw new ControlSyntaxError(
+      `Unclosed <${unclosed.name}> control element.`,
+      unclosed.offset,
+    );
   }
-  return { source: result, count };
+  return {
+    source: result,
+    count,
+    originalOffset(normalizedOffset) {
+      let difference = 0;
+      for (const replacement of replacements) {
+        if (normalizedOffset < replacement.generatedStart) break;
+        if (normalizedOffset < replacement.generatedEnd) {
+          return replacement.authoredStart;
+        }
+        difference +=
+          replacement.generatedEnd -
+          replacement.generatedStart -
+          (replacement.authoredEnd - replacement.authoredStart);
+      }
+      return normalizedOffset - difference;
+    },
+  };
 }

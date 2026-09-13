@@ -1,9 +1,12 @@
 export class ComponentCompileError extends Error {
   constructor(
-    message: string,
+    readonly description: string,
     readonly filename: string,
+    readonly position?: { readonly line: number; readonly column: number },
   ) {
-    super(`${filename}: ${message}`);
+    super(
+      `${filename}${position ? `:${position.line}:${position.column}` : ''}: ${description}`,
+    );
     this.name = 'ComponentCompileError';
   }
 }

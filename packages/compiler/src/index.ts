@@ -1,7 +1,11 @@
 import { parseFragment, type DefaultTreeAdapterTypes as Html } from 'parse5';
 import { componentScript } from './component-script.js';
-import { controlAttribute, normalizeControls } from './control-elements.js';
-import { fail } from './errors.js';
+import {
+  ControlSyntaxError,
+  controlAttribute,
+  normalizeControls,
+} from './control-elements.js';
+import { ComponentCompileError, fail } from './errors.js';
 import { compileStyle } from './styles.js';
 
 export { ComponentCompileError } from './errors.js';
@@ -53,6 +57,31 @@ function escapeTemplate(value: string): string {
 }
 
 type LocalBindings = ReadonlyMap<string, string>;
+
+interface MarkupSource {
+  readonly text: string;
+  readonly position: (normalizedOffset: number) => {
+    line: number;
+    column: number;
+  };
+}
+
+function sourcePosition(
+  source: string,
+  offset: number,
+): { line: number; column: number } {
+  let line = 1;
+  let column = 1;
+  for (let index = 0; index < offset; index++) {
+    if (source[index] === '\n') {
+      line++;
+      column = 1;
+    } else {
+      column++;
+    }
+  }
+  return { line, column };
+}
 
 function controlName(node: Html.Element): string | undefined {
   return node.attrs.find((attribute) => attribute.name === controlAttribute)
@@ -115,7 +144,7 @@ function childMarkup(
   children: Html.ChildNode[],
   filename: string,
   locals: LocalBindings,
-  source: string,
+  source: MarkupSource,
 ): string {
   return children
     .map((child) => nodeMarkup(child, filename, locals, source))
@@ -165,7 +194,7 @@ function eachMarkup(
   node: Html.Element,
   filename: string,
   locals: LocalBindings,
-  sourceText: string,
+  source: MarkupSource,
 ): string {
   const attributes = new Map(
     node.attrs
@@ -183,20 +212,24 @@ function eachMarkup(
       '<Each> needs each={path}, as="name", and key="field|self".',
     );
   }
-  const source = dynamicAttribute(attributes.get('each')!, filename, locals);
+  const collection = dynamicAttribute(
+    attributes.get('each')!,
+    filename,
+    locals,
+  );
   const name = attributes.get('as')!;
   const key = attributes.get('key')!;
-  if (!source || !identifier.test(name))
+  if (!collection || !identifier.test(name))
     fail(filename, 'Invalid <Each> binding.');
   if (key !== 'self' && !identifier.test(key))
     fail(filename, '<Each> key must be a field name or "self".');
   const nested = new Map(locals);
   nested.set(name, `${name}.value`);
-  const body = childMarkup(elementChildren(node), filename, nested, sourceText);
+  const body = childMarkup(elementChildren(node), filename, nested, source);
   const keyExpression = key === 'self' ? name : `${name}.${key}`;
   return (
     '${__repeat(() => ' +
-    source +
+    collection +
     ', (' +
     name +
     ') => ' +
@@ -213,7 +246,7 @@ function ifMarkup(
   node: Html.Element,
   filename: string,
   locals: LocalBindings,
-  source: string,
+  source: MarkupSource,
 ): string {
   const attributes = node.attrs.filter(
     (attribute) => attribute.name !== controlAttribute,
@@ -269,7 +302,7 @@ function componentMarkup(
   node: Html.Element,
   filename: string,
   locals: LocalBindings,
-  source: string,
+  source: MarkupSource,
 ): string {
   const children = elementChildren(node);
   const hasChildren = children.some(
@@ -287,14 +320,14 @@ function componentMarkup(
         attribute !== binding && attribute.name !== controlAttribute,
     )
     .map((attribute) => {
-      const name = originalAttributeName(node, attribute.name, source);
+      const name = originalAttributeName(node, attribute.name, source.text);
       if (!identifier.test(name)) {
         fail(filename, `<Use> prop ${name} must be a TypeScript identifier.`);
       }
       const value = dynamicAttribute(attribute.value, filename, locals);
       const authored = node.sourceCodeLocation?.attrs?.[attribute.name];
       const raw = authored
-        ? source.slice(authored.startOffset, authored.endOffset)
+        ? source.text.slice(authored.startOffset, authored.endOffset)
         : '';
       const output =
         value ?? (raw.includes('=') ? JSON.stringify(attribute.value) : 'true');
@@ -317,7 +350,7 @@ function elementMarkup(
   node: Html.Element,
   filename: string,
   locals: LocalBindings,
-  source: string,
+  source: MarkupSource,
 ): string {
   if (!node.sourceCodeLocation)
     fail(filename, 'HTML parser inserted an implicit element.');
@@ -415,12 +448,27 @@ function nodeMarkup(
   node: Html.ChildNode,
   filename: string,
   locals: LocalBindings,
-  source: string,
+  source: MarkupSource,
 ): string {
-  if ('tagName' in node) return elementMarkup(node, filename, locals, source);
-  if ('value' in node) return textMarkup(node.value, filename, locals);
-  if ('data' in node) return `<!--${escapeTemplate(node.data)}-->`;
-  return fail(filename, 'Doctype belongs in the document shell.');
+  try {
+    if ('tagName' in node) return elementMarkup(node, filename, locals, source);
+    if ('value' in node) return textMarkup(node.value, filename, locals);
+    if ('data' in node) return `<!--${escapeTemplate(node.data)}-->`;
+    return fail(filename, 'Doctype belongs in the document shell.');
+  } catch (error) {
+    if (
+      error instanceof ComponentCompileError &&
+      !error.position &&
+      node.sourceCodeLocation
+    ) {
+      throw new ComponentCompileError(
+        error.description,
+        filename,
+        source.position(node.sourceCodeLocation.startOffset),
+      );
+    }
+    throw error;
+  }
 }
 
 /** Compile a typed component and its optional co-located stylesheet. */
@@ -437,16 +485,35 @@ export function compileComponentParts(
   try {
     normalized = normalizeControls(source);
   } catch (error) {
+    if (error instanceof ControlSyntaxError) {
+      throw new ComponentCompileError(
+        error.message,
+        filename,
+        sourcePosition(source, error.offset),
+      );
+    }
     fail(filename, error instanceof Error ? error.message : String(error));
   }
   const normalizedSource = normalized.source;
-  const errors: string[] = [];
+  const markupSource: MarkupSource = {
+    text: normalizedSource,
+    position: (offset) =>
+      sourcePosition(source, normalized.originalOffset(offset)),
+  };
+  const errors: Array<{ code: string; startOffset: number }> = [];
   const fragment = parseFragment(normalizedSource, {
     sourceCodeLocationInfo: true,
     onParseError: (error) =>
-      errors.push(`${error.code} at ${error.startLine}:${error.startCol}`),
+      errors.push({ code: error.code, startOffset: error.startOffset }),
   });
-  if (errors.length > 0) fail(filename, errors[0]!);
+  if (errors.length > 0) {
+    const error = errors[0]!;
+    throw new ComponentCompileError(
+      error.code,
+      filename,
+      markupSource.position(error.startOffset),
+    );
+  }
   const content = fragment.childNodes.filter(
     (node) => !('value' in node) || node.value.trim().length > 0,
   );
@@ -503,7 +570,7 @@ export function compileComponentParts(
     }
   }
   assertControlElementsPreserved(normalized.count, markup, filename);
-  const body = childMarkup(markup, filename, new Map(), normalizedSource);
+  const body = childMarkup(markup, filename, new Map(), markupSource);
   if (body.trim().length === 0) fail(filename, 'The component has no markup.');
   const destructure =
     props.length > 0 ? `  const { ${props.join(', ')} } = props;\n` : '';

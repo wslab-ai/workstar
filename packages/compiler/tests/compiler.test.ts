@@ -13,7 +13,11 @@ import {
   tick,
 } from 'workstar';
 import { renderToString } from 'workstar/server';
-import { compileComponent, compileComponentParts } from '../src/index.js';
+import {
+  ComponentCompileError,
+  compileComponent,
+  compileComponentParts,
+} from '../src/index.js';
 
 function evaluate(
   source: string,
@@ -527,5 +531,40 @@ export interface Props { value: Readable<string> }
         '<script lang="ts">export interface Props {}</script><If when={ok}><p>x</p></Each>',
       ),
     ).toThrow('Mismatched');
+  });
+
+  it('reports authored line and column after control-element rewriting', () => {
+    const source = '<If when={ready}><a onclick="alert(1)">Bad</a></If>';
+    const column = source.indexOf('<a') + 1;
+    try {
+      compileComponent(source, 'contact.workstar');
+      throw new Error('Expected an invalid event handler to fail compilation.');
+    } catch (error) {
+      expect(error).toBeInstanceOf(ComponentCompileError);
+      expect(error).toMatchObject({
+        filename: 'contact.workstar',
+        position: { line: 1, column },
+      });
+      expect((error as Error).message).toContain(
+        `contact.workstar:1:${column}: Use on:event instead of onclick.`,
+      );
+    }
+  });
+
+  it('reports the source position of an invalid text expression', () => {
+    const source = '<div>\n  <p>Hello {first + last}</p>\n</div>';
+    expect(() => compileComponent(source, 'profile.workstar')).toThrow(
+      'profile.workstar:2:6: Unsupported expression: first + last',
+    );
+  });
+
+  it('points to the authored control tag when control markup is malformed', () => {
+    const source = '<If when={ready}>\n  <p>Ready</p>\n</Each>';
+    expect(() => compileComponent(source, 'status.workstar')).toThrow(
+      'status.workstar:3:1: Mismatched </Each> control element.',
+    );
+    expect(() =>
+      compileComponent('<If when={ready}>Ready', 'status.workstar'),
+    ).toThrow('status.workstar:1:1: Unclosed <If> control element.');
   });
 });
