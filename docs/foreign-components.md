@@ -49,7 +49,7 @@ export default {
 
 This runtime currently implements `createRoot`, JSX, `createElement`, `useState`, `useEffect`, `useMemo`, `useCallback`, `useRef`, `useId`, `createContext`/`useContext`, `forwardRef`, `lazy`/`Suspense`, and a limited React Router surface (`BrowserRouter`, `Routes`, `Route`, `Navigate`, `Outlet`, `Link`, `NavLink`, and their location/parameter/navigation hooks). It uses Workstar signals and DOM templates. The esbuild compatibility check rejects bundled React, React DOM, React Router, or Vue runtime modules.
 
-Run `npm run verify:compat:runtime-vite` to build a small React-style TSX application through the Workstar Vite runtime mode and exercise state, context, and routing in Chromium. The check also rejects bundled React or Vue runtime modules.
+Run `npm run verify:compat:runtime-vite` to build a small React-style TSX application through the Workstar Vite runtime mode and exercise state, context, nested routing, and retention of form fields and keyed rows in Chromium. The check also rejects bundled React or Vue runtime modules.
 
 The same runtime modules can be used with another TSX bundler by mapping `react` to `workstar/compat/react`, `react-dom/client` to `workstar/compat/react/client`, and `react-router` to `workstar/compat/react-router`, then setting the automatic JSX import source to `workstar/compat/react`. This alias and JSX configuration is bundler-specific, while the runtime itself has no Vite dependency. `npm run verify:compat:esbuild` builds an unchanged React-style TSX entry with esbuild and verifies that no React/Vue runtime modules enter its bundle.
 
