@@ -4,6 +4,8 @@ Workstar is a TypeScript UI framework for web applications. It combines explicit
 
 Workstar is developed independently. Its reactive core, component compiler, optional routing, and HTTP application layer are separate packages, so projects can adopt only the parts they need.
 
+The [Workstar wiki](https://github.com/wslab-ai/workstar/wiki) covers installation, component authoring, reactivity, rendering, routing, server actions, tooling, deployment, and migration.
+
 ## Start a project
 
 ```sh
