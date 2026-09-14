@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { chromium } from '@playwright/test';
+import { chromium, firefox, webkit } from '@playwright/test';
 import { build, preview } from 'vite';
 import { workstar } from '../packages/compiler/dist/src/vite.js';
 
@@ -33,7 +33,6 @@ function bundledModules(result) {
 }
 
 let server;
-let browser;
 try {
   await Promise.all([
     writeFile(
@@ -103,50 +102,59 @@ createRoot(document.getElementById('app')).render(<App />);
   server = await preview(config);
   const base = server.resolvedUrls.local[0];
   assert(base, 'Vite did not expose the application preview');
-  browser = await chromium.launch();
-  const page = await browser.newPage();
-  const pageErrors = [];
-  page.on('pageerror', (error) => pageErrors.push(String(error)));
-  await page.goto(base);
-  await page.locator('#count', { hasText: 'Workstar 0' }).waitFor();
-  const draft = page.getByRole('textbox', { name: 'Draft' });
-  await draft.fill('unfinished');
-  const draftElement = await draft.elementHandle();
-  const beta = page.getByRole('textbox', { name: 'beta' });
-  await beta.fill('retained row');
-  const betaElement = await beta.elementHandle();
-  await page.locator('#count').click();
-  await page.locator('#count', { hasText: 'Workstar 1' }).waitFor();
-  assert.equal(await draft.inputValue(), 'unfinished');
-  assert(
-    await draft.evaluate(
-      (element, original) => element === original,
-      draftElement,
-    ),
-    'A sibling state update replaced the draft field',
-  );
-  await page.locator('#reverse').click();
-  assert.equal(
-    await page.locator('li').first().getByRole('textbox').inputValue(),
-    'retained row',
-  );
-  assert(
-    await beta.evaluate(
-      (element, original) => element === original,
-      betaElement,
-    ),
-    'Reordering a keyed row replaced its field',
-  );
-  await page.getByRole('link', { name: 'Details' }).click();
-  await page.locator('#detail', { hasText: 'Detail 42' }).waitFor();
-  await page.locator('#detail-layout').waitFor();
-  assert.equal(new URL(page.url()).pathname, '/detail/42');
-  assert.deepEqual(pageErrors, [], 'Browser reported uncaught errors');
+  for (const browserType of [chromium, firefox, webkit]) {
+    const browser = await browserType.launch();
+    try {
+      const page = await browser.newPage();
+      const pageErrors = [];
+      page.on('pageerror', (error) => pageErrors.push(String(error)));
+      await page.goto(base);
+      await page.locator('#count', { hasText: 'Workstar 0' }).waitFor();
+      const draft = page.getByRole('textbox', { name: 'Draft' });
+      await draft.fill('unfinished');
+      const draftElement = await draft.elementHandle();
+      const beta = page.getByRole('textbox', { name: 'beta' });
+      await beta.fill('retained row');
+      const betaElement = await beta.elementHandle();
+      await page.locator('#count').click();
+      await page.locator('#count', { hasText: 'Workstar 1' }).waitFor();
+      assert.equal(await draft.inputValue(), 'unfinished');
+      assert(
+        await draft.evaluate(
+          (element, original) => element === original,
+          draftElement,
+        ),
+        'A sibling state update replaced the draft field',
+      );
+      await page.locator('#reverse').click();
+      assert.equal(
+        await page.locator('li').first().getByRole('textbox').inputValue(),
+        'retained row',
+      );
+      assert(
+        await beta.evaluate(
+          (element, original) => element === original,
+          betaElement,
+        ),
+        'Reordering a keyed row replaced its field',
+      );
+      await page.getByRole('link', { name: 'Details' }).click();
+      await page.locator('#detail', { hasText: 'Detail 42' }).waitFor();
+      await page.locator('#detail-layout').waitFor();
+      assert.equal(new URL(page.url()).pathname, '/detail/42');
+      assert.deepEqual(
+        pageErrors,
+        [],
+        `${browserType.name()} reported uncaught errors`,
+      );
+    } finally {
+      await browser.close();
+    }
+  }
   process.stdout.write(
-    `Vite runtime compatibility passed: retained forms and keyed rows, state, context, nested routing, and ${modules.length} bundled modules without React/Vue.\n`,
+    `Vite runtime compatibility passed in Chromium, Firefox, and WebKit: retained forms and keyed rows, state, context, nested routing, and ${modules.length} bundled modules without React/Vue.\n`,
   );
 } finally {
-  await browser?.close();
   if (server)
     await new Promise((done, reject) =>
       server.httpServer.close((error) => (error ? reject(error) : done())),
