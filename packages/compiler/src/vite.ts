@@ -101,9 +101,16 @@ export function workstar(options: WorkstarPluginOptions = {}): Plugin {
       if (options.foreign !== 'runtime') return;
       const runtime = options.runtimeImportSource ?? 'workstar/compat/react';
       const react = isAbsolute(runtime) ? `${runtime}/index.js` : runtime;
+      const jsxRuntime = isAbsolute(runtime)
+        ? `${runtime}/jsx-runtime.js`
+        : `${runtime}/jsx-runtime`;
+      const jsxDevRuntime = isAbsolute(runtime)
+        ? `${runtime}/jsx-dev-runtime.js`
+        : `${runtime}/jsx-dev-runtime`;
       const client = isAbsolute(runtime)
         ? `${runtime}/client.js`
         : `${runtime}/client`;
+      const dom = isAbsolute(runtime) ? `${runtime}/dom.js` : `${runtime}/dom`;
       const router = isAbsolute(runtime)
         ? resolve(runtime, '../react-router/index.js')
         : 'workstar/compat/react-router';
@@ -114,9 +121,12 @@ export function workstar(options: WorkstarPluginOptions = {}): Plugin {
         },
         resolve: {
           alias: [
-            { find: 'react-router', replacement: router },
-            { find: 'react-dom/client', replacement: client },
-            { find: 'react', replacement: react },
+            { find: /^react-router$/, replacement: router },
+            { find: /^react-dom\/client$/, replacement: client },
+            { find: /^react-dom$/, replacement: dom },
+            { find: /^react\/jsx-dev-runtime$/, replacement: jsxDevRuntime },
+            { find: /^react\/jsx-runtime$/, replacement: jsxRuntime },
+            { find: /^react$/, replacement: react },
           ],
         },
       };

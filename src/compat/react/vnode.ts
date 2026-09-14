@@ -25,6 +25,7 @@ interface ProviderComponent extends Component {
 export const Fragment = Symbol('workstar.react.fragment');
 export const StrictMode = Symbol('workstar.react.strict-mode');
 export const Suspense = Symbol('workstar.react.suspense');
+export const Portal = Symbol('workstar.react.portal');
 
 export function jsx(
   type: ElementType,
@@ -59,6 +60,75 @@ export function createElement(
 
 export function isElement(value: unknown): value is Element {
   return typeof value === 'object' && value !== null && elementBrand in value;
+}
+
+function childArray(children: unknown): unknown[] {
+  if (Array.isArray(children)) return children.flatMap(childArray);
+  return children === null ||
+    children === undefined ||
+    typeof children === 'boolean'
+    ? []
+    : [children];
+}
+
+function allChildren(children: unknown): unknown[] {
+  return Array.isArray(children) ? children.flatMap(allChildren) : [children];
+}
+
+export const Children = {
+  toArray: childArray,
+  map(
+    children: unknown,
+    transform: (child: unknown, index: number) => unknown,
+  ): unknown[] | null {
+    if (children === null || children === undefined) return null;
+    return allChildren(children).flatMap((child, index) =>
+      childArray(transform(child, index)),
+    );
+  },
+  forEach(
+    children: unknown,
+    visit: (child: unknown, index: number) => void,
+  ): void {
+    if (children === null || children === undefined) return;
+    allChildren(children).forEach(visit);
+  },
+  count(children: unknown): number {
+    if (children === null || children === undefined) return 0;
+    if (Array.isArray(children))
+      return children.reduce<number>(
+        (count, child) =>
+          count + (Array.isArray(child) ? Children.count(child) : 1),
+        0,
+      );
+    return 1;
+  },
+  only(children: unknown): Element {
+    if (!isElement(children))
+      throw new Error('Expected a single React element.');
+    return children;
+  },
+};
+
+export const isValidElement = isElement;
+
+export function cloneElement(
+  element: Element,
+  props?: Record<string, unknown> | null,
+  ...children: unknown[]
+): Element {
+  if (!isElement(element)) throw new TypeError('Expected a React element.');
+  const nextProps = { ...element.props, ...props };
+  if (children.length === 1) nextProps.children = children[0];
+  else if (children.length > 1) nextProps.children = children;
+  const key = props?.key;
+  return jsx(
+    element.type,
+    nextProps,
+    typeof key === 'string' || typeof key === 'number'
+      ? key
+      : (element.key ?? undefined),
+  );
 }
 
 export function createContext<T>(defaultValue: T): Context<T> {
@@ -108,4 +178,8 @@ export function forwardRef<Props extends Record<string, unknown>, Ref>(
   render: (props: Props, ref: Ref | null) => unknown,
 ): Component {
   return (props) => render(props as Props, (props.ref as Ref | null) ?? null);
+}
+
+export function memo<T extends Component>(component: T): T {
+  return component;
 }

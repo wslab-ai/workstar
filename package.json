@@ -4,7 +4,7 @@
     "packages/*",
     "templates/worker"
   ],
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Reactive web framework with SSR, signals, and experimental React-style TSX compatibility without React at runtime.",
   "type": "module",
   "license": "MIT",
@@ -77,6 +77,10 @@
       "types": "./dist/compat/react/client.d.ts",
       "import": "./dist/compat/react/client.js"
     },
+    "./compat/react/dom": {
+      "types": "./dist/compat/react/dom.d.ts",
+      "import": "./dist/compat/react/dom.js"
+    },
     "./compat/react-router": {
       "types": "./dist/compat/react-router/index.d.ts",
       "import": "./dist/compat/react-router/index.js"
@@ -112,7 +116,7 @@
     "access": "public"
   },
   "dependencies": {
-    "workstar-router": "0.2.2"
+    "workstar-router": "0.2.3"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",

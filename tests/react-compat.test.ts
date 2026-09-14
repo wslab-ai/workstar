@@ -3,19 +3,153 @@
 import { describe, expect, it, vi } from 'vitest';
 import { tick } from '../src/index.js';
 import { createRoot } from '../src/compat/react/client.js';
+import { createPortal } from '../src/compat/react/dom.js';
 import {
+  Children,
   StrictMode,
   Suspense,
+  cloneElement,
   createContext,
+  isValidElement,
   lazy,
   useContext,
   useEffect,
   useRef,
+  useReducer,
   useState,
 } from '../src/compat/react/index.js';
+import ReactCompat from '../src/compat/react/index.js';
 import { jsx } from '../src/compat/react/jsx-runtime.js';
 
 describe('Workstar React source runtime', () => {
+  it('supports React namespace imports and element helpers used by component libraries', () => {
+    const child = jsx(
+      'button',
+      { children: 'Save', className: 'base' },
+      'save',
+    );
+    const clone = cloneElement(child, { className: 'active' });
+    expect(ReactCompat.forwardRef).toBeDefined();
+    expect(isValidElement(clone)).toBe(true);
+    expect(clone.props).toMatchObject({
+      children: 'Save',
+      className: 'active',
+    });
+    expect(clone.key).toBe('save');
+    expect(Children.toArray([null, child, false, [clone]])).toHaveLength(2);
+    expect(
+      Children.map([child], (entry) =>
+        cloneElement(entry as typeof child, { title: 'mapped' }),
+      ),
+    ).toHaveLength(1);
+    expect(Children.count([null, child, false])).toBe(3);
+    expect(Children.only(child)).toBe(child);
+    expect(() => Children.only([child])).toThrow();
+  });
+
+  it('renders authored style text without treating it as HTML', () => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    root.render(
+      jsx('style', {
+        dangerouslySetInnerHTML: { __html: '.loading { color: red; }' },
+      }),
+    );
+    expect(host.querySelector('style')?.textContent).toBe(
+      '.loading { color: red; }',
+    );
+    root.unmount();
+    const plainRoot = createRoot(host);
+    plainRoot.render(jsx('style', { children: '.table { width: 100%; }' }));
+    expect(host.querySelector('style')?.textContent).toBe(
+      '.table { width: 100%; }',
+    );
+    plainRoot.unmount();
+  });
+
+  it('keeps context available in a portal and removes its host on unmount', async () => {
+    const host = document.createElement('div');
+    const context = createContext('missing');
+    function Dialog() {
+      return createPortal(
+        jsx('span', { children: useContext(context) }),
+        document.body,
+      );
+    }
+    function App() {
+      const [value, setValue] = useState('Ready');
+      return jsx(context.Provider, {
+        value,
+        children: [
+          jsx('button', { onClick: () => setValue('Updated') }),
+          jsx(Dialog, {}),
+        ],
+      });
+    }
+    const root = createRoot(host);
+    root.render(jsx(App, {}));
+    expect(
+      document.querySelector('[data-workstar-portal] span')?.textContent,
+    ).toBe('Ready');
+    host.querySelector('button')?.click();
+    await tick();
+    expect(
+      document.querySelector('[data-workstar-portal] span')?.textContent,
+    ).toBe('Updated');
+    root.unmount();
+    expect(document.querySelector('[data-workstar-portal]')).toBeNull();
+  });
+
+  it('updates state through a reducer', async () => {
+    const host = document.createElement('div');
+    function Counter() {
+      const [count, dispatch] = useReducer(
+        (value: number, delta: number) => value + delta,
+        0,
+      );
+      return jsx('button', { onClick: () => dispatch(2), children: count });
+    }
+    const root = createRoot(host);
+    root.render(jsx(Counter, {}));
+    host.querySelector('button')?.click();
+    await tick();
+    expect(host.querySelector('button')?.textContent).toBe('2');
+    root.unmount();
+  });
+
+  it('coalesces state that returns to its rendered value in one turn', async () => {
+    const host = document.createElement('div');
+    let change: ((value: number | null) => void) | undefined;
+    let renders = 0;
+    function View() {
+      const [value, setValue] = useState<number | null>(1);
+      change = setValue;
+      renders++;
+      return jsx('span', { children: value });
+    }
+    const root = createRoot(host);
+    root.render(jsx(View, {}));
+    change?.(null);
+    change?.(1);
+    await tick();
+    expect(renders).toBe(1);
+    expect(host.textContent).toBe('1');
+    root.unmount();
+  });
+
+  it('updates root component props without forcing unrelated state', async () => {
+    const host = document.createElement('div');
+    function View({ label }: { label: string }) {
+      return jsx('span', { children: label });
+    }
+    const root = createRoot(host);
+    root.render(jsx(View, { label: 'First' }));
+    root.render(jsx(View, { label: 'Second' }));
+    await tick();
+    expect(host.textContent).toBe('Second');
+    root.unmount();
+  });
+
   it('mounts a component and updates state from a native event', async () => {
     const host = document.createElement('div');
     function Counter() {
@@ -219,6 +353,11 @@ describe('Workstar React source runtime', () => {
     root.render(jsx('img', { src: safe }));
     expect(host.querySelector('img')?.getAttribute('src')).toBe(safe);
     root.unmount();
+    const base64 = `data:image/svg+xml;base64,${btoa('<svg xmlns="http://www.w3.org/2000/svg"><rect width="4" height="4" fill="red"/></svg>')}`;
+    const base64Root = createRoot(host);
+    base64Root.render(jsx('img', { src: base64 }));
+    expect(host.querySelector('img')?.getAttribute('src')).toBe(base64);
+    base64Root.unmount();
     expect(() => createRoot(host).render(jsx('img', { src: unsafe }))).toThrow(
       'Unsafe SVG data image',
     );

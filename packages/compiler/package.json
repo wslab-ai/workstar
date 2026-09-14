@@ -1,6 +1,6 @@
 {
   "name": "workstar-compiler",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Component compiler and Vite plugin for Workstar applications.",
   "type": "module",
   "license": "MIT",

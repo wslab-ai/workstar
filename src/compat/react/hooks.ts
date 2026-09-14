@@ -5,6 +5,8 @@ type StateSlot = {
   readonly kind: 'state';
   readonly state: Writable<unknown>;
   readonly set: (next: unknown) => void;
+  committed: unknown;
+  pending: boolean;
 };
 type MemoSlot = {
   readonly kind: 'memo';
@@ -92,6 +94,9 @@ export function runComponent<T>(
     )
       throw new Error('Component hook count changed between renders.');
     instance.hookCount = instance.cursor;
+    for (const hook of instance.hooks) {
+      if (hook.kind === 'state') hook.committed = hook.state.value;
+    }
     return result;
   } finally {
     currentInstance = previous;
@@ -116,18 +121,27 @@ export function useState<T>(
     const value =
       typeof initial === 'function' ? (initial as () => T)() : initial;
     const source = signal<unknown>(value);
-    return {
+    const stateSlot: StateSlot = {
       kind: 'state',
       state: source,
+      committed: value,
+      pending: false,
       set(next: unknown) {
         const previous = source.value;
         source.value =
           typeof next === 'function'
             ? (next as (current: unknown) => unknown)(source.value)
             : next;
-        if (!Object.is(previous, source.value)) instance.invalidate();
+        if (Object.is(previous, source.value) || stateSlot.pending) return;
+        stateSlot.pending = true;
+        queueMicrotask(() => {
+          stateSlot.pending = false;
+          if (instance.active && !Object.is(stateSlot.committed, source.value))
+            instance.invalidate();
+        });
       },
     };
+    return stateSlot;
   });
   return [
     state.state.value as T,
@@ -200,3 +214,44 @@ export function useEffect(
     effect.cleanup = typeof cleanup === 'function' ? cleanup : undefined;
   });
 }
+
+export const useLayoutEffect = useEffect;
+
+export function useReducer<State, Action>(
+  reducer: (state: State, action: Action) => State,
+  initialState: State,
+  initialize?: (state: State) => State,
+): [State, (action: Action) => void] {
+  const [state, setState] = useState(() =>
+    initialize ? initialize(initialState) : initialState,
+  );
+  const reducerRef = useRef(reducer);
+  reducerRef.current = reducer;
+  const dispatch = useCallback(
+    (action: Action) =>
+      setState((previous) => reducerRef.current(previous, action)),
+    [],
+  );
+  return [state, dispatch];
+}
+
+export function useSyncExternalStore<Snapshot>(
+  subscribe: (onStoreChange: () => void) => () => void,
+  getSnapshot: () => Snapshot,
+  _getServerSnapshot?: () => Snapshot,
+): Snapshot {
+  const [snapshot, setSnapshot] = useState(getSnapshot);
+  useEffect(() => {
+    const check = () =>
+      setSnapshot((previous) => {
+        const next = getSnapshot();
+        return Object.is(previous, next) ? previous : next;
+      });
+    const unsubscribe = subscribe(check);
+    check();
+    return unsubscribe;
+  }, [subscribe, getSnapshot]);
+  return snapshot;
+}
+
+export function useDebugValue(_value: unknown): void {}

@@ -99,12 +99,28 @@ function attributeName(name: string): string {
 }
 
 function svgImageSource(value: string): ElementRefDirective {
-  const match = /^data:image\/svg\+xml,([^#]*)$/i.exec(value);
-  if (!match)
-    throw new TypeError('Only encoded SVG data images are supported.');
+  if (
+    /^data:image\/(?:png|jpeg|gif|webp|avif);base64,[a-z0-9+/=]+$/i.test(value)
+  ) {
+    return elementRef((element) => {
+      if (element) {
+        if (!(element instanceof HTMLImageElement))
+          throw new TypeError('Image data requires an img element.');
+        element.src = value;
+      }
+    });
+  }
+  const match = /^data:image\/svg\+xml(;base64)?,([^#]*)$/i.exec(value);
+  if (!match) throw new TypeError('Unsupported data image source.');
   let markup: string;
   try {
-    markup = decodeURIComponent(match[1] ?? '');
+    markup = match[1]
+      ? new TextDecoder('utf-8', { fatal: true }).decode(
+          Uint8Array.from(atob(match[2] ?? ''), (character) =>
+            character.charCodeAt(0),
+          ),
+        )
+      : decodeURIComponent(match[2] ?? '');
   } catch {
     throw new TypeError('Invalid SVG data image encoding.');
   }
@@ -201,9 +217,35 @@ function propNames(props: Readonly<Record<string, unknown>>): string[] {
     (name) =>
       name !== 'children' &&
       name !== 'key' &&
+      name !== 'dangerouslySetInnerHTML' &&
       props[name] !== null &&
       props[name] !== undefined,
   );
+}
+
+function styleMarkup(
+  tag: string,
+  props: Readonly<Record<string, unknown>>,
+  children: unknown,
+): string | undefined {
+  const markup = props.dangerouslySetInnerHTML;
+  if (markup === undefined)
+    return tag === 'style' && typeof children === 'string'
+      ? children
+      : undefined;
+  if (
+    tag !== 'style' ||
+    (children !== undefined && children !== null && children !== false) ||
+    !markup ||
+    typeof markup !== 'object' ||
+    !('__html' in markup) ||
+    typeof markup.__html !== 'string'
+  ) {
+    throw new TypeError(
+      'dangerouslySetInnerHTML is supported only for style text.',
+    );
+  }
+  return markup.__html;
 }
 
 export interface IntrinsicView {
@@ -236,15 +278,28 @@ export function createIntrinsicView(
 
   const names = propNames(props);
   const sources = new Map<string, Writable<unknown>>();
-  const childSource = signal(children);
+  const initialStyleMarkup = styleMarkup(tag, props, children);
+  const childSource = signal(
+    initialStyleMarkup === undefined ? children : null,
+  );
   let currentProps = props;
+  let currentChildren = children;
   let refElement: Element | null = null;
   let imageElement: Element | null = null;
+  let styleElement: Element | null = null;
   const directives: Directive[] = [];
+  if (initialStyleMarkup !== undefined) {
+    directives.push(
+      elementRef((element) => {
+        styleElement = element;
+        if (element)
+          element.textContent =
+            styleMarkup(tag, currentProps, currentChildren) ?? '';
+      }),
+    );
+  }
   for (const name of names) {
     const value = props[name];
-    if (name === 'dangerouslySetInnerHTML')
-      throw new TypeError('dangerouslySetInnerHTML is not supported.');
     if (name === 'ref') {
       if (
         typeof value !== 'function' &&
@@ -315,8 +370,8 @@ export function createIntrinsicView(
     strings[strings.length - 1] += '>';
   } else {
     strings[strings.length - 1] += '>';
-    if (tag === 'textarea') {
-      strings[strings.length - 1] += '</textarea>';
+    if (tag === 'textarea' || initialStyleMarkup !== undefined) {
+      strings[strings.length - 1] += `</${tag}>`;
     } else {
       values.push(childSource);
       strings.push(`</${tag}>`);
@@ -339,6 +394,8 @@ export function createIntrinsicView(
             (!/^on[A-Z]/.test(name) ||
               eventName(name, tag, props) === eventName(name, tag, nextProps)),
         ) &&
+        Boolean(props.dangerouslySetInnerHTML !== undefined) ===
+          Boolean(nextProps.dangerouslySetInnerHTML !== undefined) &&
         (tag !== 'img' ||
           !names.includes('src') ||
           String(props.src).startsWith('data:') ===
@@ -357,6 +414,7 @@ export function createIntrinsicView(
         assignRef(nextProps.ref, refElement);
       }
       currentProps = nextProps;
+      currentChildren = nextChildren;
       for (const [name, source] of sources) {
         if (
           name === 'src' &&
@@ -366,7 +424,9 @@ export function createIntrinsicView(
           svgImageSource(String(nextProps[name])).set(imageElement);
         source.value = nextProps[name];
       }
-      childSource.value = nextChildren;
+      const nextStyleMarkup = styleMarkup(tag, nextProps, nextChildren);
+      if (styleElement) styleElement.textContent = nextStyleMarkup ?? '';
+      childSource.value = nextStyleMarkup === undefined ? nextChildren : null;
     },
   };
 }

@@ -150,6 +150,11 @@ function flush(): void {
   }
 }
 
+/** Flush queued signal effects before returning from compatibility flushSync. */
+export function flushReactiveUpdates(): void {
+  flush();
+}
+
 class Effect implements Observer {
   readonly dependencies = new Set<Dependency>();
   active = true;

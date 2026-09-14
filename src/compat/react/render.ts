@@ -10,6 +10,7 @@ import { captureFocus, restoreFocus } from './focus.js';
 import { createIntrinsicView, type IntrinsicView } from './intrinsic.js';
 import {
   Fragment,
+  Portal,
   StrictMode,
   Suspense,
   isElement,
@@ -35,6 +36,12 @@ interface ArrayView {
   readonly source: Writable<readonly ArrayItem[]>;
   readonly block: Repeat<ArrayItem>;
   items: readonly ArrayItem[];
+}
+
+interface PortalView {
+  readonly container: Element | DocumentFragment;
+  readonly host: HTMLElement;
+  readonly root: ReactRoot;
 }
 
 function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
@@ -86,25 +93,31 @@ export class ReactRoot {
   readonly #seen = new Set<string>();
   readonly #intrinsics = new Map<string, IntrinsicView>();
   readonly #arrays = new Map<string, ArrayView>();
+  readonly #portals = new Map<string, PortalView>();
   readonly #seenIntrinsics = new Set<string>();
   readonly #seenArrays = new Set<string>();
+  readonly #seenPortals = new Set<string>();
   readonly #pendingEffects: Array<() => void> = [];
   #disposeMount: (() => void) | undefined;
   #effectFlushQueued = false;
   #content: unknown;
+  #context: ReadonlyMap<Context<unknown>, unknown> = new Map();
   #closed = false;
 
   constructor(host: Element) {
     this.#host = host;
   }
 
-  render(content: unknown): void {
+  render(
+    content: unknown,
+    context: ReadonlyMap<Context<unknown>, unknown> = new Map(),
+  ): void {
     if (this.#closed)
       throw new Error('Cannot render an unmounted Workstar root.');
     this.#content = content;
+    this.#context = context;
     if (this.#disposeMount) {
-      for (const path of this.#instances.keys()) this.#dirty.add(path);
-      this.#revision.value++;
+      this.#revision.update((revision) => revision + 1);
       return;
     }
     this.#disposeMount = mount(this.#host, () => this.#render());
@@ -119,6 +132,11 @@ export class ReactRoot {
     this.#dirty.clear();
     this.#intrinsics.clear();
     this.#arrays.clear();
+    for (const portal of this.#portals.values()) {
+      portal.root.unmount();
+      portal.host.remove();
+    }
+    this.#portals.clear();
     this.#pendingEffects.length = 0;
   }
 
@@ -128,7 +146,8 @@ export class ReactRoot {
     this.#seen.clear();
     this.#seenIntrinsics.clear();
     this.#seenArrays.clear();
-    const output = this.#expand(this.#content, 'root', new Map());
+    this.#seenPortals.clear();
+    const output = this.#expand(this.#content, 'root', this.#context);
     for (const [path, instance] of this.#instances) {
       if (this.#seen.has(path)) continue;
       disposeComponent(instance);
@@ -140,6 +159,12 @@ export class ReactRoot {
     }
     for (const path of this.#arrays.keys()) {
       if (!this.#seenArrays.has(path)) this.#arrays.delete(path);
+    }
+    for (const [path, portal] of this.#portals) {
+      if (this.#seenPortals.has(path)) continue;
+      portal.root.unmount();
+      portal.host.remove();
+      this.#portals.delete(path);
     }
     this.#queueEffectFlush();
     if (focus)
@@ -182,7 +207,7 @@ export class ReactRoot {
       invalidate: () => {
         if (!instance.active) return;
         this.#dirty.add(path);
-        this.#revision.value++;
+        this.#revision.update((revision) => revision + 1);
       },
       active: true,
       cursor: 0,
@@ -213,6 +238,30 @@ export class ReactRoot {
     context: ReadonlyMap<Context<unknown>, unknown>,
   ): unknown {
     const { type, props } = node;
+    if (type === Portal) {
+      const container = props.container;
+      if (!(
+        container instanceof Element || container instanceof DocumentFragment
+      ))
+        throw new TypeError('A portal requires a DOM container.');
+      this.#seenPortals.add(path);
+      let portal = this.#portals.get(path);
+      if (portal && portal.container !== container) {
+        portal.root.unmount();
+        portal.host.remove();
+        this.#portals.delete(path);
+        portal = undefined;
+      }
+      if (!portal) {
+        const host = this.#host.ownerDocument.createElement('div');
+        host.setAttribute('data-workstar-portal', '');
+        container.append(host);
+        portal = { container, host, root: new ReactRoot(host) };
+        this.#portals.set(path, portal);
+      }
+      portal.root.render(props.children, context);
+      return null;
+    }
     if (type === Fragment || type === StrictMode)
       return this.#expand(props.children, `${path}/children`, context);
     if (type === Suspense) {
@@ -224,13 +273,13 @@ export class ReactRoot {
           () => {
             if (!this.#closed) {
               this.#dirty.add('root');
-              this.#revision.value++;
+              this.#revision.update((revision) => revision + 1);
             }
           },
           () => {
             if (!this.#closed) {
               this.#dirty.add('root');
-              this.#revision.value++;
+              this.#revision.update((revision) => revision + 1);
             }
           },
         );
