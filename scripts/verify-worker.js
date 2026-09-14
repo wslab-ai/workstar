@@ -10,6 +10,17 @@ const temporary = mkdtempSync(join(tmpdir(), 'workstar-worker-starter-'));
 const project = join(temporary, 'demo');
 let worker;
 let browser;
+let workerOutput = '';
+
+function captureWorkerOutput(chunk) {
+  workerOutput = (workerOutput + chunk.toString()).slice(-8_192);
+}
+
+function workerStartupError(message) {
+  return new Error(
+    `${message}\n${workerOutput || 'Worker produced no output.'}`,
+  );
+}
 
 async function availablePort() {
   const server = createServer();
@@ -22,17 +33,25 @@ async function availablePort() {
 }
 
 async function waitForWorker(url) {
-  for (let attempt = 0; attempt < 100; attempt++) {
+  const deadline = Date.now() + 60_000;
+  while (Date.now() < deadline) {
     if (worker.exitCode !== null || worker.signalCode !== null)
-      throw new Error('Worker exited before becoming ready.');
+      throw workerStartupError('Worker exited before becoming ready.');
+    let response;
     try {
-      if ((await fetch(url)).ok) return;
+      response = await fetch(url, { signal: AbortSignal.timeout(1_000) });
     } catch {
       // Wrangler has not bound the port yet.
     }
+    if (response?.ok) return;
+    if (response && response.status >= 500) {
+      throw workerStartupError(
+        `Worker returned HTTP ${response.status}: ${(await response.text()).slice(0, 2_000)}`,
+      );
+    }
     await new Promise((done) => setTimeout(done, 100));
   }
-  throw new Error('Timed out waiting for the Worker.');
+  throw workerStartupError('Timed out waiting 60 seconds for the Worker.');
 }
 
 async function waitForHeading(url, heading) {
@@ -62,7 +81,11 @@ try {
     '--template',
     'worker',
   ]);
-  execFileSync('npm', ['install'], { cwd: project, stdio: 'inherit' });
+  // Package local checkout dependencies so the app and views share one Workstar instance.
+  execFileSync('npm', ['install', '--install-links'], {
+    cwd: project,
+    stdio: 'inherit',
+  });
   execFileSync('npm', ['run', 'check'], { cwd: project, stdio: 'inherit' });
   rmSync(join(project, '.workstar'), { recursive: true, force: true });
 
@@ -71,8 +94,10 @@ try {
   worker = spawn(
     'npm',
     ['run', 'dev', '--', '--ip', '127.0.0.1', '--port', String(port)],
-    { cwd: project, stdio: 'ignore', detached: true },
+    { cwd: project, stdio: ['ignore', 'pipe', 'pipe'], detached: true },
   );
+  worker.stdout.on('data', captureWorkerOutput);
+  worker.stderr.on('data', captureWorkerOutput);
   await waitForWorker(origin);
 
   const sourcePath = join(project, 'src/views/home.workstar');

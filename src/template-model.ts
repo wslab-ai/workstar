@@ -4,9 +4,10 @@ import {
   normalizeAttributeValue,
 } from './attribute-value.js';
 
-const templateBrand = Symbol('workstar.template');
-const directiveBrand = Symbol('workstar.directive');
-const repeatBrand = Symbol('workstar.repeat');
+// Keep template values interoperable when a bundler loads linked Workstar packages twice.
+const templateBrand = Symbol.for('workstar.template.v1');
+const directiveBrand = Symbol.for('workstar.directive.v1');
+const repeatBrand = Symbol.for('workstar.repeat.v1');
 
 export const slotPrefix = 'workstar-slot-';
 export const directivePrefix = 'data-workstar-directive-';

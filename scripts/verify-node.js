@@ -44,10 +44,15 @@ try {
     '--template',
     'node',
   ]);
-  execFileSync('npm', ['install', '--no-audit', '--no-fund'], {
-    cwd: project,
-    stdio: 'inherit',
-  });
+  // Package local checkout dependencies so the app and views share one Workstar instance.
+  execFileSync(
+    'npm',
+    ['install', '--install-links', '--no-audit', '--no-fund'],
+    {
+      cwd: project,
+      stdio: 'inherit',
+    },
+  );
   execFileSync('npm', ['run', 'check'], { cwd: project, stdio: 'inherit' });
   execFileSync('npm', ['run', 'build'], { cwd: project, stdio: 'inherit' });
 
