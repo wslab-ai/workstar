@@ -4,7 +4,7 @@
     "packages/*",
     "templates/worker"
   ],
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Reactive web framework with SSR, signals, and experimental React-style TSX compatibility without React at runtime.",
   "type": "module",
   "license": "MIT",
@@ -112,7 +112,7 @@
     "access": "public"
   },
   "dependencies": {
-    "workstar-router": "0.2.1"
+    "workstar-router": "0.2.2"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",
