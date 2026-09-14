@@ -56,6 +56,9 @@ function Home() {
   const draftId = useId();
   const [rows, setRows] = useState(['alpha', 'beta']);
   return <main>
+    <svg id="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+      <path d="M2 2L22 22" /><circle cx={12} cy={12} r={3} />
+    </svg>
     <label htmlFor={draftId}>Draft</label><input id={draftId} defaultValue="" />
     <Counter />
     <button id="reverse" onClick={() => setRows((current) => [...current].reverse())}>Reverse</button>
@@ -110,6 +113,15 @@ createRoot(document.getElementById('app')).render(<App />);
       page.on('pageerror', (error) => pageErrors.push(String(error)));
       await page.goto(base);
       await page.locator('#count', { hasText: 'Workstar 0' }).waitFor();
+      const icon = await page.locator('#icon').evaluate((element) => ({
+        namespaces: [...element.children].map((child) => child.namespaceURI),
+        strokeWidth: getComputedStyle(element).strokeWidth,
+      }));
+      assert.deepEqual(icon.namespaces, [
+        'http://www.w3.org/2000/svg',
+        'http://www.w3.org/2000/svg',
+      ]);
+      assert.equal(icon.strokeWidth, '2px');
       const draft = page.getByRole('textbox', { name: 'Draft' });
       await draft.fill('unfinished');
       const draftElement = await draft.elementHandle();

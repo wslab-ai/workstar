@@ -18,6 +18,11 @@ import {
 } from './template-model.js';
 
 const activeMounts = new WeakMap<Element, () => void>();
+const svgNamespace = 'http://www.w3.org/2000/svg';
+
+function renderParent(node: Node | null, fallback?: Node | null): Node | null {
+  return node?.nodeType === Node.ELEMENT_NODE ? node : (fallback ?? node);
+}
 
 class Scope {
   readonly #disposers: Array<() => void> = [];
@@ -31,7 +36,12 @@ class Scope {
   }
 }
 
-function render(value: unknown, document: Document, scope: Scope): Node {
+function render(
+  value: unknown,
+  document: Document,
+  scope: Scope,
+  parent?: Node | null,
+): Node {
   if (value === null || value === undefined || value === false) {
     return document.createDocumentFragment();
   }
@@ -40,13 +50,14 @@ function render(value: unknown, document: Document, scope: Scope): Node {
     const start = document.createComment('workstar-repeat');
     const end = document.createComment('/workstar-repeat');
     fragment.append(start, end);
-    bindRepeat(start, end, value, scope, document);
+    bindRepeat(start, end, value, scope, document, false, parent);
     return fragment;
   }
-  if (isTemplate(value)) return renderTemplate(value, document, scope);
+  if (isTemplate(value)) return renderTemplate(value, document, scope, parent);
   if (Array.isArray(value)) {
     const fragment = document.createDocumentFragment();
-    for (const child of value) fragment.append(render(child, document, scope));
+    for (const child of value)
+      fragment.append(render(child, document, scope, parent));
     return fragment;
   }
   if (value instanceof Node) return value;
@@ -75,9 +86,18 @@ function bindRegion(
   scope: Scope,
   document: Document,
   hydrateInitial = false,
+  parent?: Node | null,
 ): void {
   if (isRepeat(source)) {
-    bindRepeat(start, end, source, scope, document, hydrateInitial);
+    bindRepeat(
+      start,
+      end,
+      source,
+      scope,
+      document,
+      hydrateInitial,
+      renderParent(start.parentNode, parent),
+    );
     return;
   }
   let textNode: Text | undefined;
@@ -124,7 +144,12 @@ function bindRegion(
       }
       const nextScope = new Scope();
       try {
-        const next = render(value, document, nextScope);
+        const next = render(
+          value,
+          document,
+          nextScope,
+          renderParent(start.parentNode, parent),
+        );
         textNode =
           next.nodeType === Node.TEXT_NODE ? (next as Text) : undefined;
         currentScope?.dispose();
@@ -197,6 +222,7 @@ function bindRepeat(
   scope: Scope,
   document: Document,
   hydrateInitial = false,
+  parent?: Node | null,
 ): void {
   let entries = new Map<string | number, RepeatEntry>();
   scope.own(() => {
@@ -236,6 +262,7 @@ function bindRepeat(
             itemScope,
             document,
             true,
+            renderParent(start.parentNode, parent),
           );
           cursor = itemEnd.nextSibling;
         }
@@ -276,6 +303,8 @@ function bindRepeat(
             block.view(itemSignal),
             itemScope,
             document,
+            false,
+            renderParent(start.parentNode, parent),
           );
           end.parentNode?.insertBefore(fragment, end);
         }
@@ -505,6 +534,7 @@ function renderTemplate(
   template: Template,
   document: Document,
   scope: Scope,
+  parent?: Node | null,
 ): DocumentFragment {
   let markup = template.strings[0] ?? '';
   for (let index = 0; index < template.values.length; index++) {
@@ -515,7 +545,17 @@ function renderTemplate(
   }
 
   const parsed = document.createElement('template');
-  parsed.innerHTML = markup;
+  if (
+    parent instanceof Element &&
+    parent.namespaceURI === svgNamespace &&
+    parent.localName !== 'foreignObject'
+  ) {
+    const svg = document.createElementNS(svgNamespace, 'svg');
+    svg.innerHTML = markup;
+    parsed.content.append(...svg.childNodes);
+  } else {
+    parsed.innerHTML = markup;
+  }
   const fragment = parsed.content;
   const slots = new Map<number, Comment>();
   const directives = new Map<number, Element>();

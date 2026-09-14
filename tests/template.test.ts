@@ -37,6 +37,21 @@ describe('DOM templates', () => {
     expect(host.querySelector('p')?.textContent).toBe(unsafe);
   });
 
+  it('creates dynamic SVG descendants in the SVG namespace', () => {
+    const host = document.createElement('div');
+    mount(
+      host,
+      html`<svg viewBox="0 0 24 24">${html`<path d="M2 2L22 22" />`}</svg>`,
+    );
+
+    expect(host.querySelector('svg')?.namespaceURI).toBe(
+      'http://www.w3.org/2000/svg',
+    );
+    expect(host.querySelector('path')?.namespaceURI).toBe(
+      'http://www.w3.org/2000/svg',
+    );
+  });
+
   it('disposes nested subscriptions when a conditional view disappears', async () => {
     const host = document.createElement('div');
     const visible = signal(true);

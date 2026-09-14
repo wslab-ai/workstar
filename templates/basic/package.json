@@ -12,10 +12,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "workstar": "0.2.3"
+    "workstar": "0.2.4-beta.0"
   },
   "devDependencies": {
-    "workstar-compiler": "0.2.3",
+    "workstar-compiler": "0.2.4-beta.0",
     "prettier": "^3.8.3",
     "typescript": "^6.0.3",
     "vite": "^8.0.16"

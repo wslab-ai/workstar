@@ -1,6 +1,6 @@
 {
   "name": "workstar-app",
-  "version": "0.2.3",
+  "version": "0.2.4-beta.0",
   "description": "A small Fetch-native server layer for Workstar applications.",
   "type": "module",
   "license": "MIT",
@@ -27,10 +27,10 @@
     "build": "tsc -p tsconfig.build.json"
   },
   "dependencies": {
-    "workstar-router": "0.2.3"
+    "workstar-router": "0.2.4-beta.0"
   },
   "peerDependencies": {
-    "workstar": "^0.2.3"
+    "workstar": "^0.2.4-beta.0"
   },
   "publishConfig": {
     "access": "public"

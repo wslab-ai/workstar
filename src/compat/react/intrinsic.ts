@@ -45,6 +45,19 @@ const unitlessStyles = new Set([
   'zIndex',
   'zoom',
 ]);
+const svgAttributeNames: Readonly<Record<string, string>> = {
+  clipPath: 'clip-path',
+  clipRule: 'clip-rule',
+  fillOpacity: 'fill-opacity',
+  fillRule: 'fill-rule',
+  strokeDasharray: 'stroke-dasharray',
+  strokeDashoffset: 'stroke-dashoffset',
+  strokeLinecap: 'stroke-linecap',
+  strokeLinejoin: 'stroke-linejoin',
+  strokeMiterlimit: 'stroke-miterlimit',
+  strokeOpacity: 'stroke-opacity',
+  strokeWidth: 'stroke-width',
+};
 
 function styleText(value: unknown): string {
   if (!value || typeof value !== 'object' || Array.isArray(value))
@@ -95,7 +108,7 @@ function attributeName(name: string): string {
   if (name === 'htmlFor') return 'for';
   if (name === 'tabIndex') return 'tabindex';
   if (name === 'autoFocus') return 'autofocus';
-  return name;
+  return svgAttributeNames[name] ?? name;
 }
 
 function svgImageSource(value: string): ElementRefDirective {

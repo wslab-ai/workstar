@@ -22,6 +22,33 @@ import ReactCompat from '../src/compat/react/index.js';
 import { jsx } from '../src/compat/react/jsx-runtime.js';
 
 describe('Workstar React source runtime', () => {
+  it('renders nested icon shapes with SVG attributes and namespaces', () => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    root.render(
+      jsx('svg', {
+        viewBox: '0 0 24 24',
+        fill: 'none',
+        stroke: 'currentColor',
+        strokeWidth: 2,
+        children: [
+          jsx('path', { d: 'M2 2L22 22' }),
+          jsx('circle', { cx: 12, cy: 12, r: 3 }),
+        ],
+      }),
+    );
+
+    const svg = host.querySelector('svg');
+    expect(svg?.getAttribute('stroke-width')).toBe('2');
+    expect(svg?.querySelector('path')?.namespaceURI).toBe(
+      'http://www.w3.org/2000/svg',
+    );
+    expect(svg?.querySelector('circle')?.namespaceURI).toBe(
+      'http://www.w3.org/2000/svg',
+    );
+    root.unmount();
+  });
+
   it('supports React namespace imports and element helpers used by component libraries', () => {
     const child = jsx(
       'button',
