@@ -42,15 +42,30 @@ try {
     ),
     writeFile(
       join(project, 'main.tsx'),
-      `import { createContext, useContext, useState } from 'react';
+      `import { createContext, useContext, useId, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { BrowserRouter, Link, Route, Routes, useParams } from 'react-router';
+import { BrowserRouter, Link, Outlet, Route, Routes, useParams } from 'react-router';
 
 const Label = createContext('missing');
 
 function Counter() {
   const [count, setCount] = useState(0);
   return <button id="count" onClick={() => setCount(count + 1)}>{useContext(Label)} {count}</button>;
+}
+
+function Home() {
+  const draftId = useId();
+  const [rows, setRows] = useState(['alpha', 'beta']);
+  return <main>
+    <label htmlFor={draftId}>Draft</label><input id={draftId} defaultValue="" />
+    <Counter />
+    <button id="reverse" onClick={() => setRows((current) => [...current].reverse())}>Reverse</button>
+    <ul>{rows.map((row) => <li key={row}><input aria-label={row} defaultValue="" /></li>)}</ul>
+  </main>;
+}
+
+function DetailLayout() {
+  return <section id="detail-layout"><Outlet /></section>;
 }
 
 function Detail() {
@@ -61,7 +76,10 @@ function Detail() {
 function App() {
   return <Label.Provider value="Workstar"><BrowserRouter>
     <nav><Link to="/">Home</Link><Link to="/detail/42">Details</Link></nav>
-    <Routes><Route path="/" element={<Counter />} /><Route path="/detail/:id" element={<Detail />} /></Routes>
+    <Routes>
+      <Route path="/" element={<Home />} />
+      <Route path="/detail" element={<DetailLayout />}><Route path=":id" element={<Detail />} /></Route>
+    </Routes>
   </BrowserRouter></Label.Provider>;
 }
 
@@ -91,14 +109,41 @@ createRoot(document.getElementById('app')).render(<App />);
   page.on('pageerror', (error) => pageErrors.push(String(error)));
   await page.goto(base);
   await page.locator('#count', { hasText: 'Workstar 0' }).waitFor();
+  const draft = page.getByRole('textbox', { name: 'Draft' });
+  await draft.fill('unfinished');
+  const draftElement = await draft.elementHandle();
+  const beta = page.getByRole('textbox', { name: 'beta' });
+  await beta.fill('retained row');
+  const betaElement = await beta.elementHandle();
   await page.locator('#count').click();
   await page.locator('#count', { hasText: 'Workstar 1' }).waitFor();
+  assert.equal(await draft.inputValue(), 'unfinished');
+  assert(
+    await draft.evaluate(
+      (element, original) => element === original,
+      draftElement,
+    ),
+    'A sibling state update replaced the draft field',
+  );
+  await page.locator('#reverse').click();
+  assert.equal(
+    await page.locator('li').first().getByRole('textbox').inputValue(),
+    'retained row',
+  );
+  assert(
+    await beta.evaluate(
+      (element, original) => element === original,
+      betaElement,
+    ),
+    'Reordering a keyed row replaced its field',
+  );
   await page.getByRole('link', { name: 'Details' }).click();
   await page.locator('#detail', { hasText: 'Detail 42' }).waitFor();
+  await page.locator('#detail-layout').waitFor();
   assert.equal(new URL(page.url()).pathname, '/detail/42');
   assert.deepEqual(pageErrors, [], 'Browser reported uncaught errors');
   process.stdout.write(
-    `Vite runtime compatibility passed: state, context, routing, and ${modules.length} bundled modules without React/Vue.\n`,
+    `Vite runtime compatibility passed: retained forms and keyed rows, state, context, nested routing, and ${modules.length} bundled modules without React/Vue.\n`,
   );
 } finally {
   await browser?.close();
