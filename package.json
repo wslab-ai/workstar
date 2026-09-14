@@ -4,8 +4,8 @@
     "packages/*",
     "templates/worker"
   ],
-  "version": "0.2.0",
-  "description": "A small reactive UI framework for the web.",
+  "version": "0.2.1",
+  "description": "Reactive web framework with SSR, signals, and experimental React-style TSX compatibility without React at runtime.",
   "type": "module",
   "license": "MIT",
   "author": "Workstar Lab <hello@workstarlab.com>",
@@ -112,7 +112,7 @@
     "access": "public"
   },
   "dependencies": {
-    "workstar-router": "0.2.0"
+    "workstar-router": "0.2.1"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",

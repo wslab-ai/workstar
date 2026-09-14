@@ -11,13 +11,13 @@
     "dev": "node scripts/dev.mjs"
   },
   "dependencies": {
-    "workstar": "0.2.0",
-    "workstar-router": "0.2.0",
-    "workstar-app": "0.2.0"
+    "workstar": "0.2.1",
+    "workstar-router": "0.2.1",
+    "workstar-app": "0.2.1"
   },
   "devDependencies": {
     "@types/node": "^20.19.0",
     "typescript": "^6.0.3",
-    "workstar-compiler": "0.2.0"
+    "workstar-compiler": "0.2.1"
   }
 }

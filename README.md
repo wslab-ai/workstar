@@ -1,13 +1,13 @@
 # Workstar
 
-Workstar is a TypeScript UI framework for small applications. It combines explicit reactive state with declarative HTML templates and updates only the affected DOM regions. The runtime has no dependencies or virtual DOM. An optional `.workstar` compiler provides component-local markup, state, and scoped CSS.
+Workstar is a TypeScript UI framework for web applications. It combines explicit reactive state with declarative HTML templates and updates only the affected DOM regions. The runtime has no dependencies or virtual DOM. An optional `.workstar` compiler provides component-local markup, state, and scoped CSS. Experimental React-style TSX compatibility lets existing components run without React at runtime; see the supported APIs and limits below.
 
 Workstar is developed independently. Its reactive core, component compiler, optional routing, and HTTP application layer are separate packages, so projects can adopt only the parts they need.
 
 ## Start a project
 
 ```sh
-npx workstar@0.2.0 create my-app
+npx workstar@0.2.1 create my-app
 cd my-app
 npm install
 npm run dev
@@ -24,7 +24,7 @@ any static host. There is no mandatory vendor account or server runtime.
 For a server-rendered Cloudflare Worker with static assets and standard HTML form actions:
 
 ```sh
-npx workstar@0.2.0 create my-worker --template worker
+npx workstar@0.2.1 create my-worker --template worker
 cd my-worker
 npm install
 npm run check
@@ -36,7 +36,7 @@ The Worker template is also an example, not a production contact service: its fo
 For a server-rendered Node.js application without a platform-specific runtime:
 
 ```sh
-npx workstar@0.2.0 create my-node-app --template node
+npx workstar@0.2.1 create my-node-app --template node
 cd my-node-app
 npm install
 npm run dev
@@ -109,6 +109,6 @@ Supported stateless TSX and Vue SFC components can be compiled to Workstar modul
 
 ## Scope and limits
 
-The 0.1 release provides reactive DOM updates, server rendering and hydration, a component compiler, optional URL matching and Fetch-native request handling, and static and server-rendered starters. Native links remain the default; client-side navigation, automatic data loading, authentication, upload storage, and deployment configuration are application responsibilities. The component compiler intentionally accepts a documented subset of component syntax. The Worker starter demonstrates a no-JavaScript form action but does not send email.
+The 0.2 release provides reactive DOM updates, server rendering and hydration, a component compiler, optional URL matching and Fetch-native request handling, and static and server-rendered starters. Native links remain the default; client-side navigation, automatic data loading, authentication, upload storage, and deployment configuration are application responsibilities. The component compiler intentionally accepts a documented subset of component syntax. The Worker starter demonstrates a no-JavaScript form action but does not send email.
 
 Run `npm run verify` for formatting, types, tests, build, a gzip size budget, Worker type checks, and pack checks. Run `npm run bench` for repeatable local performance measurements. The [compatibility contract](docs/compatibility.md) states the supported runtimes and development-update limits; the [architecture notes](docs/architecture.md) explain the boundaries and release gates. MIT licensed.
