@@ -59,31 +59,57 @@ const svgAttributeNames: Readonly<Record<string, string>> = {
   strokeWidth: 'stroke-width',
 };
 
-function styleText(value: unknown): string {
+function styleDeclarations(value: unknown): Map<string, string> {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new TypeError('React style must be a plain object.');
-  return Object.entries(value)
-    .filter(
-      ([, entry]) => entry !== null && entry !== undefined && entry !== '',
-    )
-    .map(([name, entry]) => {
-      if (!/^--[a-zA-Z0-9_-]+$|^[a-zA-Z][a-zA-Z0-9]*$/.test(name))
-        throw new TypeError(`Invalid style property ${name}.`);
-      if (typeof entry !== 'string' && typeof entry !== 'number')
-        throw new TypeError(`Invalid style value for ${name}.`);
-      const property = name.startsWith('--')
-        ? name
-        : name.replace(/[A-Z]/g, (character) => `-${character.toLowerCase()}`);
-      const suffix =
-        typeof entry === 'number' &&
-        entry !== 0 &&
-        !unitlessStyles.has(name) &&
-        !name.startsWith('--')
-          ? 'px'
-          : '';
-      return `${property}:${entry}${suffix}`;
-    })
+  const declarations = new Map<string, string>();
+  for (const [name, entry] of Object.entries(value)) {
+    if (entry === null || entry === undefined || entry === '') continue;
+    if (!/^--[a-zA-Z0-9_-]+$|^[a-zA-Z][a-zA-Z0-9]*$/.test(name))
+      throw new TypeError(`Invalid style property ${name}.`);
+    if (typeof entry !== 'string' && typeof entry !== 'number')
+      throw new TypeError(`Invalid style value for ${name}.`);
+    const property = name.startsWith('--')
+      ? name
+      : name.replace(/[A-Z]/g, (character) => `-${character.toLowerCase()}`);
+    const suffix =
+      typeof entry === 'number' &&
+      entry !== 0 &&
+      !unitlessStyles.has(name) &&
+      !name.startsWith('--')
+        ? 'px'
+        : '';
+    declarations.set(property, `${entry}${suffix}`);
+  }
+  return declarations;
+}
+
+function styleText(value: unknown): string {
+  return [...styleDeclarations(value)]
+    .map(([property, entry]) => `${property}:${entry}`)
     .join(';');
+}
+
+function styledElement(source: Writable<unknown>): ElementRefDirective {
+  let dispose: (() => void) | undefined;
+  return elementRef((element) => {
+    dispose?.();
+    dispose = undefined;
+    if (!element) return;
+    const style = (element as HTMLElement | SVGElement).style;
+    let previous = new Map<string, string>();
+    dispose = effect(() => {
+      const next = styleDeclarations(source.value);
+      for (const property of previous.keys()) {
+        if (!next.has(property)) style.removeProperty(property);
+      }
+      for (const [property, entry] of next) {
+        if (previous.get(property) !== entry)
+          style.setProperty(property, entry);
+      }
+      previous = next;
+    });
+  });
 }
 
 function eventName(
@@ -339,6 +365,10 @@ export function createIntrinsicView(
     }
     const source = signal(value);
     sources.set(name, source);
+    if (name === 'style') {
+      directives.push(styledElement(source));
+      continue;
+    }
     if (tag === 'textarea' && (name === 'value' || name === 'defaultValue')) {
       directives.push(textareaValue(source));
       continue;
@@ -367,11 +397,9 @@ export function createIntrinsicView(
     directives.push(
       attr(mapped, () => {
         const current = source.value;
-        return name === 'style'
-          ? styleText(current)
-          : typeof current === 'boolean' && /^(?:aria|data)-/.test(mapped)
-            ? String(current)
-            : current;
+        return typeof current === 'boolean' && /^(?:aria|data)-/.test(mapped)
+          ? String(current)
+          : current;
       }),
     );
     if (tag === 'input' && (name === 'value' || name === 'checked'))

@@ -94,6 +94,29 @@ describe('Workstar React source runtime', () => {
     plainRoot.unmount();
   });
 
+  it('preserves styles added by an imperative widget during rerenders', async () => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    root.render(jsx('div', { style: { minHeight: '400px' } }));
+    const mapContainer = host.firstElementChild as HTMLElement;
+
+    mapContainer.style.position = 'relative';
+    root.render(jsx('div', { style: { minHeight: '400px' } }));
+    await tick();
+    expect(mapContainer.style.position).toBe('relative');
+
+    root.render(jsx('div', { style: { minHeight: '500px' } }));
+    await tick();
+    expect(mapContainer.style.minHeight).toBe('500px');
+    expect(mapContainer.style.position).toBe('relative');
+
+    root.render(jsx('div', { style: {} }));
+    await tick();
+    expect(mapContainer.style.minHeight).toBe('');
+    expect(mapContainer.style.position).toBe('relative');
+    root.unmount();
+  });
+
   it('keeps context available in a portal and removes its host on unmount', async () => {
     const host = document.createElement('div');
     const context = createContext('missing');
