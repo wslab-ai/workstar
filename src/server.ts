@@ -10,6 +10,7 @@ import {
   resolve,
   resolveTextareaValue,
   slotPrefix,
+  spreadAttributes,
   type Template,
 } from './template-model.js';
 
@@ -141,6 +142,10 @@ function renderTemplate(template: Template): string {
         );
         if (attribute !== null) {
           output += ` ${value.name}="${escapeHtml(attribute)}"`;
+        }
+      } else if (value.kind === 'attributes') {
+        for (const [name, attribute] of spreadAttributes(value.source)) {
+          output += ` ${name}="${escapeHtml(attribute)}"`;
         }
       } else if (value.kind === 'textarea') {
         if (!/^<\s*textarea\b/i.test(context.tagText)) {

@@ -11,6 +11,7 @@ import {
   resolve,
   resolveTextareaValue,
   slotPrefix,
+  spreadAttributes,
   type Directive,
   type Repeat,
   type Template,
@@ -412,6 +413,11 @@ function bindDirective(
   scope: Scope,
   hydrating = false,
 ): void {
+  if (directive.kind === 'element-ref') {
+    directive.set(element);
+    scope.own(() => directive.set(null));
+    return;
+  }
   if (directive.kind === 'event') {
     element.addEventListener(
       directive.event,
@@ -448,6 +454,21 @@ function bindDirective(
         }
         element.value = text;
         initial = false;
+      }),
+    );
+    return;
+  }
+  if (directive.kind === 'attributes') {
+    let previous = new Set<string>();
+    scope.own(
+      effect(() => {
+        const entries = spreadAttributes(directive.source);
+        const next = new Set(entries.map(([name]) => name));
+        for (const name of previous) {
+          if (!next.has(name)) element.removeAttribute(name);
+        }
+        for (const [name, value] of entries) element.setAttribute(name, value);
+        previous = next;
       }),
     );
     return;

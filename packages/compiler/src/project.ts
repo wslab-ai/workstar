@@ -2,9 +2,24 @@ import { watch } from 'node:fs';
 import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { compileComponentParts } from './index.js';
+import { convertForeignComponent } from './compat.js';
+import { reactComponentExportName } from './react-compat.js';
+import { resolveReactComponentImport } from './react-import-resolution.js';
 
 export interface ProjectStyles {
   cssOutputPath?: string;
+}
+
+export interface ForeignAuditEntry {
+  filename: string;
+  supported: boolean;
+  reason?: string;
+}
+
+export interface ForeignAudit {
+  total: number;
+  supported: number;
+  entries: ForeignAuditEntry[];
 }
 
 async function filesInDirectory(
@@ -35,18 +50,32 @@ function relocatedImport(
   outputPath: string,
   specifier: string,
 ): string {
+  if (specifier.endsWith('.tsx?workstar')) {
+    const sourceTarget = resolve(
+      dirname(sourcePath),
+      specifier.slice(0, -'?workstar'.length),
+    );
+    const generatedTarget = resolve(
+      dirname(outputPath),
+      relative(dirname(sourcePath), sourceTarget).slice(0, -'.tsx'.length),
+    );
+    const path = relative(dirname(outputPath), generatedTarget)
+      .split(sep)
+      .join('/');
+    return path.startsWith('.') ? path : `./${path}`;
+  }
   const target = resolve(dirname(sourcePath), specifier);
   const path = relative(dirname(outputPath), target).split(sep).join('/');
   return path.startsWith('.') ? path : `./${path}`;
 }
 
-/** Compile one authored view without rewriting unrelated generated modules. */
-export async function compileViewFile(
+async function compileSourceFile(
   sourcePath: string,
   outputPath: string,
-  options: ProjectStyles = {},
+  source: string,
+  options: ProjectStyles,
+  namedExport?: string,
 ): Promise<void> {
-  const source = await readFile(sourcePath, 'utf8');
   const { code, css } = compileComponentParts(source, sourcePath, {
     rewriteRelativeImport: (specifier) =>
       relocatedImport(sourcePath, outputPath, specifier),
@@ -57,11 +86,87 @@ export async function compileViewFile(
     );
   }
   await mkdir(dirname(outputPath), { recursive: true });
-  await writeFile(outputPath, code, 'utf8');
+  await writeFile(
+    outputPath,
+    code + (namedExport ? `\nexport { render as ${namedExport} };\n` : ''),
+    'utf8',
+  );
   if (options.cssOutputPath) {
     await mkdir(dirname(options.cssOutputPath), { recursive: true });
     await writeFile(options.cssOutputPath, css, 'utf8');
   }
+}
+
+/** Compile one authored Workstar view without rewriting unrelated generated modules. */
+export async function compileViewFile(
+  sourcePath: string,
+  outputPath: string,
+  options: ProjectStyles = {},
+): Promise<void> {
+  await compileSourceFile(
+    sourcePath,
+    outputPath,
+    await readFile(sourcePath, 'utf8'),
+    options,
+  );
+}
+
+/** Compile a supported TSX or Vue SFC through the Workstar runtime. */
+export async function compileForeignFile(
+  sourcePath: string,
+  outputPath: string,
+  options: ProjectStyles = {},
+): Promise<void> {
+  const original = await readFile(sourcePath, 'utf8');
+  const source = convertForeignComponent(original, sourcePath, {
+    resolveReactImport: (specifier) =>
+      resolveReactComponentImport(sourcePath, specifier),
+  });
+  const namedExport = sourcePath.endsWith('.tsx')
+    ? reactComponentExportName(original, sourcePath)
+    : undefined;
+  await compileSourceFile(sourcePath, outputPath, source, options, namedExport);
+}
+
+/** Report source compatibility without writing generated files or changing the app. */
+export async function auditForeignDirectory(
+  sourceDirectory: string,
+): Promise<ForeignAudit> {
+  const paths = await filesInDirectory(
+    sourceDirectory,
+    (name) =>
+      /\.(tsx|vue)$/.test(name) &&
+      !/\.(test|spec|stories)\.(tsx|vue)$/.test(name),
+  );
+  const entries = await Promise.all(
+    paths.map(async (filename): Promise<ForeignAuditEntry> => {
+      const sourcePath = join(sourceDirectory, filename);
+      try {
+        const converted = convertForeignComponent(
+          await readFile(sourcePath, 'utf8'),
+          sourcePath,
+          {
+            resolveReactImport: (specifier) =>
+              resolveReactComponentImport(sourcePath, specifier),
+          },
+        );
+        compileComponentParts(converted, `${sourcePath}.workstar`);
+        return { filename, supported: true };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return {
+          filename,
+          supported: false,
+          reason: message.replace(sourcePath, filename),
+        };
+      }
+    }),
+  );
+  return {
+    total: entries.length,
+    supported: entries.filter((entry) => entry.supported).length,
+    entries,
+  };
 }
 
 /** Compile every view before writing any generated modules. */

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { attr, html, on, signal } from '../src/index.js';
+import { attr, attrs, html, on, signal } from '../src/index.js';
 import { renderToString } from '../src/server.js';
 
 describe('server rendering', () => {
@@ -57,5 +57,25 @@ describe('server rendering', () => {
     expect(() =>
       renderToString(html`<noscript>${'Use email instead.'}</noscript>`),
     ).toThrow('Child expressions');
+  });
+
+  it('renders safe attribute spreads and rejects executable or unsafe values', () => {
+    const output = renderToString(
+      html`<output
+        ${attrs({ 'aria-label': '<loading>', 'data-ready': false })}
+      ></output>`,
+    );
+    expect(output).toContain('aria-label="&lt;loading&gt;"');
+    expect(output).toContain('data-ready="false"');
+    expect(() =>
+      renderToString(
+        html`<a ${attrs({ href: 'javascript:alert(1)' })}>bad</a>`,
+      ),
+    ).toThrow('Unsafe URL');
+    expect(() =>
+      renderToString(
+        html`<button ${attrs({ onClick: () => {} })}>bad</button>`,
+      ),
+    ).toThrow('unsafe attribute');
   });
 });

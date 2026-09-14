@@ -1,0 +1,9 @@
+import type { HTMLAttributes } from 'react';
+
+interface SkeletonProps extends HTMLAttributes<HTMLOutputElement> {
+  label: string;
+}
+
+export function Skeleton({ className = '', label, ...props }: SkeletonProps) {
+  return <output aria-label={label} className={`fixture-skeleton ${className}`.trim()} {...props} />;
+}

@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 
 import { describe, expect, it } from 'vitest';
-import { attr, html, mount, on, signal, tick } from '../src/index.js';
+import { attr, attrs, html, mount, on, signal, tick } from '../src/index.js';
 
 describe('DOM templates', () => {
   it('binds text, attributes, and events without replacing the button', async () => {
@@ -93,5 +93,22 @@ describe('DOM templates', () => {
     expect(host.querySelector('p')?.textContent).toBe('second');
     disposeSecond();
     expect(host.childNodes).toHaveLength(0);
+  });
+
+  it('updates an attribute spread without replacing its element', async () => {
+    const host = document.createElement('div');
+    const attributes = signal<Record<string, unknown>>({
+      title: 'First',
+      'aria-hidden': false,
+    });
+    mount(host, html`<output ${attrs(attributes)}></output>`);
+    const output = host.querySelector('output');
+    expect(output?.title).toBe('First');
+    expect(output?.getAttribute('aria-hidden')).toBe('false');
+    attributes.value = { 'data-state': 'ready' };
+    await tick();
+    expect(host.querySelector('output')).toBe(output);
+    expect(output?.hasAttribute('title')).toBe(false);
+    expect(output?.getAttribute('data-state')).toBe('ready');
   });
 });

@@ -73,7 +73,9 @@ const dispose = mount(
 // Call dispose() when the view is no longer needed.
 ```
 
-`signal()` provides writable state. `computed()` derives a lazy read-only value. `effect()` runs on changes and returns a disposer. Synchronous writes are coalesced into one microtask; `await tick()` waits for DOM effects after a write. `html` interpolations insert strings as **text**, never as HTML. Use `attr(name, value)` for dynamic attributes and `on(event, handler)` for listeners, both inside an opening tag.
+`signal()` provides writable state. `computed()` derives a lazy read-only value. `effect()` runs on changes and returns a disposer. Synchronous writes are coalesced into one microtask; `await tick()` waits for DOM effects after a write. `html` interpolations insert strings as **text**, never as HTML. Use `attr(name, value)` for dynamic attributes, `attrs(record)` for a checked plain record of HTML attributes, and `on(event, handler)` for listeners, all inside an opening tag. Attribute records reject event handlers, styles, refs, and unsafe URLs.
+
+For a small object with independent reactive fields, use `store({ count: 0, label: 'Ready' })` and update a field with `state.count++` or `state.label = 'Done'`. A store is shallow and accepts primitive fields only; nested objects and changing its keys are deliberately unsupported. An effect reading `state.count` does not rerun when only `state.label` changes.
 
 Server rendering is available as a low-level API. Build the same view with the same initial data on server and client:
 
@@ -100,6 +102,10 @@ html`<section>${() => (visible.value ? Message('world') : null)}</section>`;
 ```
 
 Nested reactive subscriptions and listeners are cleaned up when their region disappears. Primitive text updates reuse the same text node. Dynamic URL attributes reject non-HTTP(S), `mailto:`, or `tel:` schemes.
+
+## Experimental TSX and Vue source compatibility
+
+Supported stateless TSX and Vue SFC components can be compiled to Workstar modules without React or Vue runtimes. Vite accepts explicit `?workstar` imports; `workstar-compile --compat` works with other bundlers and server builds. An experimental runtime mode also builds unchanged React TSX source with Workstar-backed hooks and routing, without bundling React. See the [compatibility guide](docs/foreign-components.md) for syntax, verification, and limits.
 
 ## Scope and limits
 

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { computed, effect, signal, tick } from '../src/index.js';
+import { computed, effect, signal, store, tick } from '../src/index.js';
 
 describe('reactivity', () => {
   it('updates effects once after multiple synchronous writes', async () => {
@@ -77,5 +77,31 @@ describe('reactivity', () => {
     expect(cleanup).toHaveBeenCalledTimes(1);
     dispose();
     expect(cleanup).toHaveBeenCalledTimes(2);
+  });
+
+  it('tracks shallow store fields independently', async () => {
+    const state = store({ count: 0, label: 'Ready' });
+    const observed = vi.fn(() => state.count);
+    const dispose = effect(observed);
+
+    state.label = 'Updated';
+    await tick();
+    expect(observed).toHaveBeenCalledTimes(1);
+
+    state.count++;
+    await tick();
+    expect(observed).toHaveBeenCalledTimes(2);
+    expect(observed).toHaveLastReturnedWith(1);
+    expect(Object.getOwnPropertyDescriptor(state, 'count')?.value).toBe(1);
+    dispose();
+  });
+
+  it('rejects nested state and shape changes in a shallow store', () => {
+    expect(() => store({ nested: { value: 1 } } as never)).toThrow(
+      'primitive value',
+    );
+    const state = store({ count: 0 });
+    expect(Reflect.set(state, 'other', 1)).toBe(false);
+    expect(Reflect.deleteProperty(state, 'count')).toBe(false);
   });
 });

@@ -1,4 +1,8 @@
 import { isReadable, type Readable } from './reactivity.js';
+import {
+  assertAttributeName,
+  normalizeAttributeValue,
+} from './attribute-value.js';
 
 const templateBrand = Symbol('workstar.template');
 const directiveBrand = Symbol('workstar.directive');
@@ -87,7 +91,24 @@ export interface TextareaDirective {
   readonly source: unknown;
 }
 
-export type Directive = EventDirective | AttributeDirective | TextareaDirective;
+export interface AttributesDirective {
+  readonly [directiveBrand]: true;
+  readonly kind: 'attributes';
+  readonly source: unknown;
+}
+
+export interface ElementRefDirective {
+  readonly [directiveBrand]: true;
+  readonly kind: 'element-ref';
+  readonly set: (element: Element | null) => void;
+}
+
+export type Directive =
+  | EventDirective
+  | AttributeDirective
+  | TextareaDirective
+  | AttributesDirective
+  | ElementRefDirective;
 
 export function isTemplate(value: unknown): value is Template {
   return typeof value === 'object' && value !== null && templateBrand in value;
@@ -127,14 +148,47 @@ export function on(
 }
 
 export function attr(name: string, source: unknown): AttributeDirective {
-  if (
-    !/^[a-z_:][a-z0-9_:.\-]*$/i.test(name) ||
-    /^on/i.test(name) ||
-    /^srcdoc$/i.test(name)
-  ) {
-    throw new TypeError('Invalid or unsafe attribute name.');
-  }
+  assertAttributeName(name);
   return { [directiveBrand]: true, kind: 'attribute', name, source };
+}
+
+export function attrs(source: unknown): AttributesDirective {
+  return { [directiveBrand]: true, kind: 'attributes', source };
+}
+
+export function elementRef(
+  set: (element: Element | null) => void,
+): ElementRefDirective {
+  return { [directiveBrand]: true, kind: 'element-ref', set };
+}
+
+export function spreadAttributes(source: unknown): Array<[string, string]> {
+  const value = resolve(source);
+  if (
+    !value ||
+    typeof value !== 'object' ||
+    Array.isArray(value) ||
+    ![Object.prototype, null].includes(Object.getPrototypeOf(value))
+  ) {
+    throw new TypeError('Attribute spread must resolve to a plain record.');
+  }
+  const entries: Array<[string, string]> = [];
+  for (const [name, attributeValue] of Object.entries(value)) {
+    assertAttributeName(name);
+    if (
+      /^(?:style|children|ref|key|className|htmlFor|innerHTML)$/i.test(name) ||
+      name.startsWith(directivePrefix)
+    )
+      throw new TypeError(`Unsupported spread attribute ${name}.`);
+    const normalized = normalizeAttributeValue(
+      name,
+      attributeValue === false && /^(?:aria|data)-/i.test(name)
+        ? 'false'
+        : attributeValue,
+    );
+    if (normalized !== null) entries.push([name, normalized]);
+  }
+  return entries;
 }
 
 export function textareaValue(source: unknown): TextareaDirective {

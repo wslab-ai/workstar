@@ -1,0 +1,110 @@
+import assert from 'node:assert/strict';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { chromium } from '@playwright/test';
+import { build, preview } from 'vite';
+import { workstar } from '../packages/compiler/dist/src/vite.js';
+
+const repository = resolve(import.meta.dirname, '..');
+const project = await mkdtemp(join(tmpdir(), 'workstar-react-runtime-vite-'));
+const config = {
+  root: project,
+  configFile: false,
+  cacheDir: join(project, '.vite-cache'),
+  plugins: [
+    workstar({
+      foreign: 'runtime',
+      runtimeImportSource: join(repository, 'dist/compat/react'),
+    }),
+  ],
+  build: { outDir: join(project, 'dist'), emptyOutDir: true },
+  preview: { host: '127.0.0.1', port: 0 },
+  logLevel: 'silent',
+};
+
+function bundledModules(result) {
+  const builds = Array.isArray(result) ? result : [result];
+  return builds.flatMap((buildResult) =>
+    buildResult.output.flatMap((asset) =>
+      asset.type === 'chunk' ? Object.keys(asset.modules) : [],
+    ),
+  );
+}
+
+let server;
+let browser;
+try {
+  await Promise.all([
+    writeFile(
+      join(project, 'index.html'),
+      '<div id="app"></div><script type="module" src="/main.tsx"></script>',
+    ),
+    writeFile(
+      join(project, 'main.tsx'),
+      `import { createContext, useContext, useState } from 'react';
+import { createRoot } from 'react-dom/client';
+import { BrowserRouter, Link, Route, Routes, useParams } from 'react-router';
+
+const Label = createContext('missing');
+
+function Counter() {
+  const [count, setCount] = useState(0);
+  return <button id="count" onClick={() => setCount(count + 1)}>{useContext(Label)} {count}</button>;
+}
+
+function Detail() {
+  const { id } = useParams();
+  return <p id="detail">Detail {id}</p>;
+}
+
+function App() {
+  return <Label.Provider value="Workstar"><BrowserRouter>
+    <nav><Link to="/">Home</Link><Link to="/detail/42">Details</Link></nav>
+    <Routes><Route path="/" element={<Counter />} /><Route path="/detail/:id" element={<Detail />} /></Routes>
+  </BrowserRouter></Label.Provider>;
+}
+
+createRoot(document.getElementById('app')).render(<App />);
+`,
+    ),
+  ]);
+
+  const modules = bundledModules(await build(config));
+  assert(modules.length > 5, 'Expected a bundled application');
+  assert.deepEqual(
+    modules.filter((name) =>
+      /[/\\]node_modules[/\\](?:react|react-dom|react-router|vue)(?:[/\\]|$)/.test(
+        name,
+      ),
+    ),
+    [],
+    'Vite bundled a foreign framework runtime',
+  );
+
+  server = await preview(config);
+  const base = server.resolvedUrls.local[0];
+  assert(base, 'Vite did not expose the application preview');
+  browser = await chromium.launch();
+  const page = await browser.newPage();
+  const pageErrors = [];
+  page.on('pageerror', (error) => pageErrors.push(String(error)));
+  await page.goto(base);
+  await page.locator('#count', { hasText: 'Workstar 0' }).waitFor();
+  await page.locator('#count').click();
+  await page.locator('#count', { hasText: 'Workstar 1' }).waitFor();
+  await page.getByRole('link', { name: 'Details' }).click();
+  await page.locator('#detail', { hasText: 'Detail 42' }).waitFor();
+  assert.equal(new URL(page.url()).pathname, '/detail/42');
+  assert.deepEqual(pageErrors, [], 'Browser reported uncaught errors');
+  process.stdout.write(
+    `Vite runtime compatibility passed: state, context, routing, and ${modules.length} bundled modules without React/Vue.\n`,
+  );
+} finally {
+  await browser?.close();
+  if (server)
+    await new Promise((done, reject) =>
+      server.httpServer.close((error) => (error ? reject(error) : done())),
+    );
+  await rm(project, { recursive: true, force: true });
+}

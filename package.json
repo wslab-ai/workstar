@@ -30,6 +30,7 @@
   "files": [
     "bin",
     "dist",
+    "docs/foreign-components.md",
     "templates/basic",
     "templates/node",
     "templates/worker/gitignore.txt",
@@ -59,6 +60,26 @@
     "./dev": {
       "types": "./dist/dev.d.ts",
       "import": "./dist/dev.js"
+    },
+    "./compat/react": {
+      "types": "./dist/compat/react/index.d.ts",
+      "import": "./dist/compat/react/index.js"
+    },
+    "./compat/react/jsx-runtime": {
+      "types": "./dist/compat/react/jsx-runtime.d.ts",
+      "import": "./dist/compat/react/jsx-runtime.js"
+    },
+    "./compat/react/jsx-dev-runtime": {
+      "types": "./dist/compat/react/jsx-dev-runtime.d.ts",
+      "import": "./dist/compat/react/jsx-dev-runtime.js"
+    },
+    "./compat/react/client": {
+      "types": "./dist/compat/react/client.d.ts",
+      "import": "./dist/compat/react/client.js"
+    },
+    "./compat/react-router": {
+      "types": "./dist/compat/react-router/index.d.ts",
+      "import": "./dist/compat/react-router/index.js"
     }
   },
   "scripts": {
@@ -79,16 +100,23 @@
     "verify:router": "npm run check --workspace workstar-router && npm run test --workspace workstar-router && npm run build --workspace workstar-router",
     "verify:app": "npm run check --workspace workstar-app && npm run test --workspace workstar-app && npm run build --workspace workstar-app",
     "verify:compiler": "npm run check --workspace workstar-compiler && npm run test --workspace workstar-compiler && npm run build --workspace workstar-compiler",
+    "verify:compat": "npm run build --workspace workstar-compiler && node scripts/verify-compat-hmr.js",
+    "verify:compat:esbuild": "npm run build:packages && node scripts/verify-react-compat-esbuild.js",
+    "verify:compat:runtime-vite": "npm run build:packages && node scripts/verify-react-runtime-vite.js",
     "verify:vscode": "npm ci --prefix editors/vscode && npm test --prefix editors/vscode && npm run package --prefix editors/vscode",
     "verify:worker": "npm run check --workspace workstar-worker-starter && node scripts/verify-worker.js",
     "verify:node": "node scripts/verify-node.js",
-    "verify": "npm run format:check && npm run check:release && npm run check && npm test && npm run build && npm run size && npm run verify:hydration && npm run verify:router && npm run verify:app && npm run verify:compiler && npm run verify:vscode && npm run verify:starter && npm run verify:worker && npm run verify:node && npm run verify:packaged-starter && npm pack --dry-run"
+    "verify": "npm run format:check && npm run check:release && npm run check && npm test && npm run build && npm run size && npm run verify:hydration && npm run verify:router && npm run verify:app && npm run verify:compiler && npm run verify:compat && npm run verify:compat:esbuild && npm run verify:compat:runtime-vite && npm run verify:vscode && npm run verify:starter && npm run verify:worker && npm run verify:node && npm run verify:packaged-starter && npm pack --dry-run"
   },
   "publishConfig": {
     "access": "public"
   },
+  "dependencies": {
+    "workstar-router": "0.1.1"
+  },
   "devDependencies": {
     "@playwright/test": "^1.60.0",
+    "esbuild": "^0.28.2",
     "happy-dom": "^20.8.0",
     "prettier": "^3.8.3",
     "typescript": "^6.0.3",

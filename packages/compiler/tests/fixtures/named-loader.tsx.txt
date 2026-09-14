@@ -1,0 +1,14 @@
+export interface LoaderProps {
+  className?: string;
+  label: string;
+  size?: 'small' | 'medium' | 'large';
+}
+
+export function Loader({ className = '', label, size = 'medium' }: LoaderProps) {
+  return (
+    <output aria-label={label} className={`fixture-loader fixture-loader-${size} ${className}`.trim()}>
+      <span aria-hidden="true" className="fixture-loader-spinner" />
+      <span className="visually-hidden">{label}</span>
+    </output>
+  );
+}

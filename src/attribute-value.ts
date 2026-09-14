@@ -1,3 +1,13 @@
+export function assertAttributeName(name: string): void {
+  if (
+    !/^[a-z_:][a-z0-9_:.\-]*$/i.test(name) ||
+    /^on/i.test(name) ||
+    /^srcdoc$/i.test(name)
+  ) {
+    throw new TypeError('Invalid or unsafe attribute name.');
+  }
+}
+
 export function normalizeAttributeValue(
   name: string,
   value: unknown,

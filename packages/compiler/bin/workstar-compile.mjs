@@ -2,8 +2,10 @@
 import { resolve } from 'node:path';
 import {
   compileViewFile,
+  compileForeignFile,
   compileViewDirectory,
   watchViewDirectory,
+  auditForeignDirectory,
 } from '../dist/src/project.js';
 
 const args = process.argv.slice(2);
@@ -13,7 +15,10 @@ try {
     (args.length === 4 && args[2] === '--css')
       ? { cssOutputPath: resolve(args.at(-1)) }
       : {};
-  if (
+  if (args.length === 2 && args[0] === '--compat-audit') {
+    const report = await auditForeignDirectory(resolve(args[1]));
+    process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+  } else if (
     (args.length === 3 || (args.length === 5 && args[3] === '--css')) &&
     args[0] === '--all'
   ) {
@@ -36,6 +41,13 @@ try {
       `Watching ${resolve(args[1])} for .workstar changes.\n`,
     );
   } else if (
+    (args.length === 3 || (args.length === 5 && args[3] === '--css')) &&
+    args[0] === '--compat' &&
+    /\.(tsx|vue)$/.test(args[1] ?? '') &&
+    args[2]?.endsWith('.ts')
+  ) {
+    await compileForeignFile(resolve(args[1]), resolve(args[2]), cssOption);
+  } else if (
     (args.length === 2 || (args.length === 4 && args[2] === '--css')) &&
     args[0]?.endsWith('.workstar') &&
     args[1]?.endsWith('.ts')
@@ -45,7 +57,9 @@ try {
   } else {
     process.stderr.write(
       'Usage: workstar-compile input.workstar output.ts [--css public/components.css]\n' +
+        '       workstar-compile --compat input.tsx|input.vue output.ts [--css public/components.css]\n' +
         '       workstar-compile --all source-directory output-directory [--css public/components.css]\n' +
+        '       workstar-compile --compat-audit source-directory\n' +
         '       workstar-compile --watch source-directory output-directory [--css public/components.css]\n',
     );
     process.exitCode = 2;

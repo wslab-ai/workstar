@@ -7,3 +7,10 @@ declare module '*.workstar' {
     context?: HotContext,
   ): Template;
 }
+
+declare module '*?workstar' {
+  import type { Template } from 'workstar';
+
+  const render: (props: Record<string, unknown>) => Template;
+  export default render;
+}

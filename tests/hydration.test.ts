@@ -3,6 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   attr,
+  attrs,
   html,
   hydrate,
   on,
@@ -84,5 +85,19 @@ describe('hydration', () => {
     await tick();
     expect(textarea.value).toBe('Updated');
     dispose();
+  });
+
+  it('hydrates attribute spreads and updates them in place', async () => {
+    const host = document.createElement('div');
+    const attributes = signal<Record<string, unknown>>({ title: 'Server' });
+    const content = html`<output ${attrs(attributes)}></output>`;
+    host.innerHTML = renderToString(content);
+    const output = host.querySelector('output');
+    hydrate(host, content);
+    attributes.value = { 'aria-label': 'Updated' };
+    await tick();
+    expect(host.querySelector('output')).toBe(output);
+    expect(output?.hasAttribute('title')).toBe(false);
+    expect(output?.getAttribute('aria-label')).toBe('Updated');
   });
 });
