@@ -119,6 +119,11 @@ try {
           : 'devDependencies';
       generated[section][name] = `file:${packageArchives[name]}`;
     }
+    if (template === 'basic') {
+      // The core depends on the router, which may not be published yet for a prerelease.
+      generated.devDependencies['workstar-router'] =
+        `file:${packageArchives['workstar-router']}`;
+    }
     writeFileSync(
       join(project, 'package.json'),
       `${JSON.stringify(generated, null, 2)}\n`,

@@ -23,3 +23,5 @@ only with a corresponding note in the release.
 For a release, run `npm run verify`, `npm run bench`, and smoke-test the packed
 static, Node, and Worker starters before publishing in dependency order:
 router, core, app, compiler. Publish each package only once for a version.
+Publish prereleases with `--tag next` for every package so the stable `latest`
+tag remains unchanged during application trials.
