@@ -5,8 +5,10 @@ import {
   on,
   textareaValue,
   type Directive,
+  type ElementRefDirective,
   type Template,
 } from '../../template-model.js';
+import { effect, signal, type Writable } from '../../reactivity.js';
 
 const voidTags = new Set([
   'area',
@@ -96,18 +98,7 @@ function attributeName(name: string): string {
   return name;
 }
 
-function refDirective(value: unknown): Directive {
-  if (typeof value === 'function')
-    return elementRef(value as (element: Element | null) => void);
-  if (value && typeof value === 'object' && 'current' in value) {
-    return elementRef((element) => {
-      (value as { current: Element | null }).current = element;
-    });
-  }
-  throw new TypeError('React ref must be a callback or ref object.');
-}
-
-function svgImageSource(value: string): Directive {
+function svgImageSource(value: string): ElementRefDirective {
   const match = /^data:image\/svg\+xml,([^#]*)$/i.exec(value);
   if (!match)
     throw new TypeError('Only encoded SVG data images are supported.');
@@ -178,33 +169,110 @@ function svgImageSource(value: string): Directive {
   });
 }
 
-function propDirectives(
+function assignRef(ref: unknown, element: Element | null): void {
+  if (typeof ref === 'function') {
+    (ref as (element: Element | null) => void)(element);
+  } else if (ref && typeof ref === 'object' && 'current' in ref) {
+    (ref as { current: Element | null }).current = element;
+  } else {
+    throw new TypeError('React ref must be a callback or ref object.');
+  }
+}
+
+function controlledInput(
+  name: 'value' | 'checked',
+  source: Writable<unknown>,
+): ElementRefDirective {
+  let dispose: (() => void) | undefined;
+  return elementRef((element) => {
+    dispose?.();
+    dispose = undefined;
+    if (!(element instanceof HTMLInputElement)) return;
+    dispose = effect(() => {
+      const value = source.value;
+      if (name === 'value') element.value = value == null ? '' : String(value);
+      else element.checked = Boolean(value);
+    });
+  });
+}
+
+function propNames(props: Readonly<Record<string, unknown>>): string[] {
+  return Object.keys(props).filter(
+    (name) =>
+      name !== 'children' &&
+      name !== 'key' &&
+      props[name] !== null &&
+      props[name] !== undefined,
+  );
+}
+
+export interface IntrinsicView {
+  readonly template: Template;
+  matches(tag: string, props: Readonly<Record<string, unknown>>): boolean;
+  update(props: Readonly<Record<string, unknown>>, children: unknown): void;
+}
+
+export function createIntrinsicView(
   tag: string,
   props: Readonly<Record<string, unknown>>,
-): Directive[] {
+  children: unknown,
+): IntrinsicView {
+  if (!/^[a-z][a-z0-9-]*$/.test(tag))
+    throw new TypeError(`Invalid intrinsic element ${tag}.`);
+  if (
+    voidTags.has(tag) &&
+    children !== undefined &&
+    children !== null &&
+    children !== false
+  )
+    throw new TypeError(`Void element ${tag} cannot have children.`);
+  if (
+    tag === 'textarea' &&
+    children !== undefined &&
+    children !== null &&
+    children !== false
+  )
+    throw new TypeError('Textarea children are not supported; use value.');
+
+  const names = propNames(props);
+  const sources = new Map<string, Writable<unknown>>();
+  const childSource = signal(children);
+  let currentProps = props;
+  let refElement: Element | null = null;
+  let imageElement: Element | null = null;
   const directives: Directive[] = [];
-  for (const [name, value] of Object.entries(props)) {
-    if (
-      name === 'children' ||
-      name === 'key' ||
-      value === undefined ||
-      value === null
-    )
-      continue;
+  for (const name of names) {
+    const value = props[name];
     if (name === 'dangerouslySetInnerHTML')
       throw new TypeError('dangerouslySetInnerHTML is not supported.');
     if (name === 'ref') {
-      directives.push(refDirective(value));
+      if (
+        typeof value !== 'function' &&
+        !(value && typeof value === 'object' && 'current' in value)
+      )
+        throw new TypeError('React ref must be a callback or ref object.');
+      directives.push(
+        elementRef((element) => {
+          refElement = element;
+          assignRef(currentProps.ref, element);
+        }),
+      );
       continue;
     }
     if (/^on[A-Z]/.test(name)) {
       if (typeof value !== 'function')
         throw new TypeError(`Event handler ${name} must be a function.`);
-      directives.push(on(eventName(name, tag, props), value as EventListener));
+      directives.push(
+        on(eventName(name, tag, props), (event) => {
+          (currentProps[name] as EventListener)(event);
+        }),
+      );
       continue;
     }
+    const source = signal(value);
+    sources.set(name, source);
     if (tag === 'textarea' && (name === 'value' || name === 'defaultValue')) {
-      directives.push(textareaValue(value));
+      directives.push(textareaValue(source));
       continue;
     }
     if (
@@ -213,7 +281,13 @@ function propDirectives(
       typeof value === 'string' &&
       value.startsWith('data:')
     ) {
-      directives.push(svgImageSource(value));
+      svgImageSource(value);
+      directives.push(
+        elementRef((element) => {
+          imageElement = element;
+          if (element) svgImageSource(String(currentProps.src)).set(element);
+        }),
+      );
       continue;
     }
     const mapped =
@@ -223,43 +297,76 @@ function propDirectives(
           ? 'checked'
           : attributeName(name);
     directives.push(
-      attr(
-        mapped,
-        name === 'style'
-          ? styleText(value)
-          : typeof value === 'boolean' && /^(?:aria|data)-/.test(mapped)
-            ? String(value)
-            : value,
-      ),
+      attr(mapped, () => {
+        const current = source.value;
+        return name === 'style'
+          ? styleText(current)
+          : typeof current === 'boolean' && /^(?:aria|data)-/.test(mapped)
+            ? String(current)
+            : current;
+      }),
     );
+    if (tag === 'input' && (name === 'value' || name === 'checked'))
+      directives.push(controlledInput(name, source));
   }
-  return directives;
-}
-
-export function renderIntrinsic(
-  tag: string,
-  props: Readonly<Record<string, unknown>>,
-  children: unknown,
-): Template {
-  if (!/^[a-z][a-z0-9-]*$/.test(tag))
-    throw new TypeError(`Invalid intrinsic element ${tag}.`);
-  const directives = propDirectives(tag, props);
   const strings = [`<${tag}`, ...directives.map(() => '')];
   const values: unknown[] = [...directives];
   if (voidTags.has(tag)) {
-    if (children !== undefined && children !== null && children !== false)
-      throw new TypeError(`Void element ${tag} cannot have children.`);
     strings[strings.length - 1] += '>';
   } else {
     strings[strings.length - 1] += '>';
-    if (children === undefined || children === null || children === false) {
-      strings[strings.length - 1] += `</${tag}>`;
-    } else if (tag === 'textarea') {
-      throw new TypeError('Textarea children are not supported; use value.');
+    if (tag === 'textarea') {
+      strings[strings.length - 1] += '</textarea>';
     } else {
-      values.push(children);
+      values.push(childSource);
       strings.push(`</${tag}>`);
     }
   }
-  return html(Object.assign(strings, { raw: [...strings] }), ...values);
+  const template = html(
+    Object.assign(strings, { raw: [...strings] }),
+    ...values,
+  );
+  return {
+    template,
+    matches(nextTag, nextProps) {
+      const nextNames = propNames(nextProps);
+      return (
+        nextTag === tag &&
+        names.length === nextNames.length &&
+        names.every(
+          (name, index) =>
+            name === nextNames[index] &&
+            (!/^on[A-Z]/.test(name) ||
+              eventName(name, tag, props) === eventName(name, tag, nextProps)),
+        ) &&
+        (tag !== 'img' ||
+          !names.includes('src') ||
+          String(props.src).startsWith('data:') ===
+            String(nextProps.src).startsWith('data:'))
+      );
+    },
+    update(nextProps, nextChildren) {
+      const previousProps = currentProps;
+      for (const name of names) {
+        if (/^on[A-Z]/.test(name) && typeof nextProps[name] !== 'function')
+          throw new TypeError(`Event handler ${name} must be a function.`);
+        if (name === 'style') styleText(nextProps[name]);
+      }
+      if (refElement && previousProps.ref !== nextProps.ref) {
+        assignRef(previousProps.ref, null);
+        assignRef(nextProps.ref, refElement);
+      }
+      currentProps = nextProps;
+      for (const [name, source] of sources) {
+        if (
+          name === 'src' &&
+          imageElement &&
+          !Object.is(previousProps.src, nextProps.src)
+        )
+          svgImageSource(String(nextProps[name])).set(imageElement);
+        source.value = nextProps[name];
+      }
+      childSource.value = nextChildren;
+    },
+  };
 }

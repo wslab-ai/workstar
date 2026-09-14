@@ -1,4 +1,5 @@
-import { signal } from '../../reactivity.js';
+import { signal, withoutTracking, type Writable } from '../../reactivity.js';
+import { repeat, type Repeat } from '../../template-model.js';
 import { mount } from '../../template.js';
 import {
   disposeComponent,
@@ -6,7 +7,7 @@ import {
   type ComponentInstance,
 } from './hooks.js';
 import { captureFocus, restoreFocus } from './focus.js';
-import { renderIntrinsic } from './intrinsic.js';
+import { createIntrinsicView, type IntrinsicView } from './intrinsic.js';
 import {
   Fragment,
   StrictMode,
@@ -20,6 +21,20 @@ import {
 
 interface MountedComponent extends ComponentInstance {
   readonly type: Component;
+  props: Readonly<Record<string, unknown>>;
+  result: unknown;
+  rendered: boolean;
+}
+
+interface ArrayItem {
+  readonly key: string;
+  readonly output: unknown;
+}
+
+interface ArrayView {
+  readonly source: Writable<readonly ArrayItem[]>;
+  readonly block: Repeat<ArrayItem>;
+  items: readonly ArrayItem[];
 }
 
 function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
@@ -35,12 +50,44 @@ function childPath(parent: string, child: ReactElement, index: number): string {
   return `${parent}/${child.key === null ? index : `key:${String(child.key)}`}`;
 }
 
+function sameProps(
+  previous: Readonly<Record<string, unknown>>,
+  next: Readonly<Record<string, unknown>>,
+): boolean {
+  const keys = Object.keys(previous);
+  return (
+    keys.length === Object.keys(next).length &&
+    keys.every(
+      (key) =>
+        Object.prototype.hasOwnProperty.call(next, key) &&
+        Object.is(previous[key], next[key]),
+    )
+  );
+}
+
+function sameContext(
+  previous: ReadonlyMap<Context<unknown>, unknown>,
+  next: ReadonlyMap<Context<unknown>, unknown>,
+): boolean {
+  return (
+    previous.size === next.size &&
+    [...previous].every(
+      ([key, value]) => next.has(key) && Object.is(value, next.get(key)),
+    )
+  );
+}
+
 /** Render React-shaped source through Workstar templates and signals. */
 export class ReactRoot {
   readonly #host: Element;
   readonly #revision = signal(0);
   readonly #instances = new Map<string, MountedComponent>();
+  readonly #dirty = new Set<string>();
   readonly #seen = new Set<string>();
+  readonly #intrinsics = new Map<string, IntrinsicView>();
+  readonly #arrays = new Map<string, ArrayView>();
+  readonly #seenIntrinsics = new Set<string>();
+  readonly #seenArrays = new Set<string>();
   readonly #pendingEffects: Array<() => void> = [];
   #disposeMount: (() => void) | undefined;
   #effectFlushQueued = false;
@@ -56,6 +103,7 @@ export class ReactRoot {
       throw new Error('Cannot render an unmounted Workstar root.');
     this.#content = content;
     if (this.#disposeMount) {
+      for (const path of this.#instances.keys()) this.#dirty.add(path);
       this.#revision.value++;
       return;
     }
@@ -68,6 +116,9 @@ export class ReactRoot {
     this.#disposeMount?.();
     for (const instance of this.#instances.values()) disposeComponent(instance);
     this.#instances.clear();
+    this.#dirty.clear();
+    this.#intrinsics.clear();
+    this.#arrays.clear();
     this.#pendingEffects.length = 0;
   }
 
@@ -75,14 +126,27 @@ export class ReactRoot {
     void this.#revision.value;
     const focus = captureFocus(this.#host);
     this.#seen.clear();
+    this.#seenIntrinsics.clear();
+    this.#seenArrays.clear();
     const output = this.#expand(this.#content, 'root', new Map());
     for (const [path, instance] of this.#instances) {
       if (this.#seen.has(path)) continue;
       disposeComponent(instance);
       this.#instances.delete(path);
+      this.#dirty.delete(path);
+    }
+    for (const path of this.#intrinsics.keys()) {
+      if (!this.#seenIntrinsics.has(path)) this.#intrinsics.delete(path);
+    }
+    for (const path of this.#arrays.keys()) {
+      if (!this.#seenArrays.has(path)) this.#arrays.delete(path);
     }
     this.#queueEffectFlush();
-    if (focus) queueMicrotask(() => restoreFocus(this.#host, focus));
+    if (focus)
+      queueMicrotask(() => {
+        if (!this.#host.contains(this.#host.ownerDocument.activeElement))
+          restoreFocus(this.#host, focus);
+      });
     return output;
   }
 
@@ -109,20 +173,38 @@ export class ReactRoot {
     const instance = this.#instances.get(path) ?? {
       path,
       type,
+      props,
+      result: undefined,
+      rendered: false,
       hooks: [],
       context,
       scheduleEffect: (run: () => void) => this.#pendingEffects.push(run),
+      invalidate: () => {
+        if (!instance.active) return;
+        this.#dirty.add(path);
+        this.#revision.value++;
+      },
       active: true,
       cursor: 0,
       hookCount: undefined,
     };
-    instance.context = context;
     this.#instances.set(path, instance);
     this.#seen.add(path);
-    const result = runComponent(instance, () =>
-      type(props as Record<string, unknown>),
-    );
-    return this.#expand(result, `${path}/render`, context);
+    if (
+      !instance.rendered ||
+      this.#dirty.has(path) ||
+      !sameProps(instance.props, props) ||
+      !sameContext(instance.context, context)
+    ) {
+      this.#dirty.delete(path);
+      instance.props = props;
+      instance.context = context;
+      instance.result = withoutTracking(() =>
+        runComponent(instance, () => type(props as Record<string, unknown>)),
+      );
+      instance.rendered = true;
+    }
+    return this.#expand(instance.result, `${path}/render`, context);
   }
 
   #element(
@@ -138,9 +220,31 @@ export class ReactRoot {
         return this.#expand(props.children, `${path}/children`, context);
       } catch (error) {
         if (!isPromiseLike(error)) throw error;
+        void Promise.resolve(error).then(
+          () => {
+            if (!this.#closed) {
+              this.#dirty.add('root');
+              this.#revision.value++;
+            }
+          },
+          () => {
+            if (!this.#closed) {
+              this.#dirty.add('root');
+              this.#revision.value++;
+            }
+          },
+        );
         for (const seenPath of this.#seen) {
           if (seenPath.startsWith(`${path}/children`))
             this.#seen.delete(seenPath);
+        }
+        for (const seenPath of this.#seenIntrinsics) {
+          if (seenPath.startsWith(`${path}/children`))
+            this.#seenIntrinsics.delete(seenPath);
+        }
+        for (const seenPath of this.#seenArrays) {
+          if (seenPath.startsWith(`${path}/children`))
+            this.#seenArrays.delete(seenPath);
         }
         return this.#expand(props.fallback, `${path}/fallback`, context);
       }
@@ -156,7 +260,57 @@ export class ReactRoot {
     if (typeof type !== 'string')
       throw new TypeError('Unsupported React element type.');
     const children = this.#expand(props.children, `${path}/children`, context);
-    return renderIntrinsic(type, props, children);
+    this.#seenIntrinsics.add(path);
+    const previous = this.#intrinsics.get(path);
+    if (previous?.matches(type, props)) {
+      previous.update(props, children);
+      return previous.template;
+    }
+    const next = createIntrinsicView(type, props, children);
+    this.#intrinsics.set(path, next);
+    return next.template;
+  }
+
+  #array(
+    children: readonly unknown[],
+    path: string,
+    context: ReadonlyMap<Context<unknown>, unknown>,
+  ): Repeat<ArrayItem> {
+    const items = children.map((child, index) => ({
+      key:
+        isElement(child) && child.key !== null
+          ? `key:${String(child.key)}`
+          : `index:${index}`,
+      output: this.#expand(
+        child,
+        isElement(child) ? childPath(path, child, index) : `${path}/${index}`,
+        context,
+      ),
+    }));
+    this.#seenArrays.add(path);
+    const previous = this.#arrays.get(path);
+    if (previous) {
+      if (
+        previous.items.length !== items.length ||
+        previous.items.some(
+          (item, index) =>
+            item.key !== items[index]?.key ||
+            item.output !== items[index]?.output,
+        )
+      ) {
+        previous.items = items;
+        previous.source.value = items;
+      }
+      return previous.block;
+    }
+    const source = signal<readonly ArrayItem[]>(items);
+    const block = repeat<ArrayItem>(
+      source,
+      (item) => item.key,
+      (item) => () => item.value.output,
+    );
+    this.#arrays.set(path, { source, block, items });
+    return block;
   }
 
   #expand(
@@ -166,14 +320,7 @@ export class ReactRoot {
   ): unknown {
     if (value === null || value === undefined || typeof value === 'boolean')
       return null;
-    if (Array.isArray(value))
-      return value.map((child, index) =>
-        this.#expand(
-          child,
-          isElement(child) ? childPath(path, child, index) : `${path}/${index}`,
-          context,
-        ),
-      );
+    if (Array.isArray(value)) return this.#array(value, path, context);
     if (isElement(value)) return this.#element(value, path, context);
     if (
       typeof value === 'string' ||

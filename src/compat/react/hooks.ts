@@ -29,6 +29,7 @@ export interface ComponentInstance {
   readonly hooks: HookSlot[];
   context: ReadonlyMap<Context<unknown>, unknown>;
   readonly scheduleEffect: (run: () => void) => void;
+  readonly invalidate: () => void;
   active: boolean;
   cursor: number;
   hookCount: number | undefined;
@@ -111,7 +112,7 @@ export function disposeComponent(instance: ComponentInstance): void {
 export function useState<T>(
   initial: T | (() => T),
 ): [T, (next: T | ((current: T) => T)) => void] {
-  const state = slot('state', () => {
+  const state = slot('state', (instance) => {
     const value =
       typeof initial === 'function' ? (initial as () => T)() : initial;
     const source = signal<unknown>(value);
@@ -119,10 +120,12 @@ export function useState<T>(
       kind: 'state',
       state: source,
       set(next: unknown) {
+        const previous = source.value;
         source.value =
           typeof next === 'function'
             ? (next as (current: unknown) => unknown)(source.value)
             : next;
+        if (!Object.is(previous, source.value)) instance.invalidate();
       },
     };
   });

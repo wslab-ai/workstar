@@ -27,12 +27,126 @@ describe('Workstar React source runtime', () => {
     }
     const root = createRoot(host);
     root.render(jsx(StrictMode, { children: jsx(Counter, {}) }));
-    expect(host.querySelector('button')?.textContent).toBe('0');
-    host.querySelector('button')?.click();
+    const button = host.querySelector('button');
+    expect(button?.textContent).toBe('0');
+    button?.click();
     await tick();
     expect(host.querySelector('button')?.textContent).toBe('1');
+    expect(host.querySelector('button')).toBe(button);
     root.unmount();
     expect(host.childNodes).toHaveLength(0);
+  });
+
+  it('preserves an untouched form field when sibling state changes', async () => {
+    const host = document.createElement('div');
+    document.body.append(host);
+    let increment: (() => void) | undefined;
+    let appRenders = 0;
+    let counterRenders = 0;
+    function Counter() {
+      counterRenders++;
+      const [count, setCount] = useState(0);
+      increment = () => setCount((value) => value + 1);
+      return jsx('output', { children: count });
+    }
+    function App() {
+      appRenders++;
+      return jsx('main', {
+        children: [
+          jsx('input', { name: 'draft', defaultValue: '' }),
+          jsx(Counter, {}),
+        ],
+      });
+    }
+    const root = createRoot(host);
+    root.render(jsx(App, {}));
+    const main = host.querySelector('main');
+    const field = host.querySelector('input');
+    if (!field) throw new Error('Missing input');
+    field.value = 'unfinished work';
+    field.focus();
+    increment?.();
+    await tick();
+    expect(host.querySelector('main')).toBe(main);
+    expect(host.querySelector('input')).toBe(field);
+    expect(field.value).toBe('unfinished work');
+    expect(document.activeElement).toBe(field);
+    expect(host.querySelector('output')?.textContent).toBe('1');
+    expect(appRenders).toBe(1);
+    expect(counterRenders).toBe(2);
+    root.unmount();
+    host.remove();
+  });
+
+  it('moves keyed rows without recreating their inputs', async () => {
+    const host = document.createElement('div');
+    let reverse: (() => void) | undefined;
+    function List() {
+      const [rows, setRows] = useState([
+        { id: 'a', label: 'Alpha' },
+        { id: 'b', label: 'Beta' },
+      ]);
+      reverse = () => setRows((current) => [...current].reverse());
+      return jsx('ul', {
+        children: rows.map((row) =>
+          jsx(
+            'li',
+            {
+              children: [
+                jsx('span', { children: row.label }),
+                jsx('input', { defaultValue: '' }),
+              ],
+            },
+            row.id,
+          ),
+        ),
+      });
+    }
+    const root = createRoot(host);
+    root.render(jsx(List, {}));
+    const original = host.querySelectorAll('li')[1];
+    const field = original?.querySelector('input');
+    if (!field) throw new Error('Missing row input');
+    field.value = 'draft';
+    reverse?.();
+    await tick();
+    expect(host.querySelectorAll('li')[0]).toBe(original);
+    expect(host.querySelectorAll('li')[0]?.querySelector('input')).toBe(field);
+    expect(field.value).toBe('draft');
+    root.unmount();
+  });
+
+  it('updates controlled form properties on a retained input', async () => {
+    const host = document.createElement('div');
+    let setValue: ((value: string) => void) | undefined;
+    let setChecked: ((value: boolean) => void) | undefined;
+    function Form() {
+      const [value, changeValue] = useState('first');
+      const [checked, changeChecked] = useState(false);
+      setValue = changeValue;
+      setChecked = changeChecked;
+      return jsx('form', {
+        children: [
+          jsx('input', { name: 'label', value }),
+          jsx('input', { name: 'enabled', type: 'checkbox', checked }),
+        ],
+      });
+    }
+    const root = createRoot(host);
+    root.render(jsx(Form, {}));
+    const text = host.querySelector<HTMLInputElement>('input[name="label"]');
+    const checkbox = host.querySelector<HTMLInputElement>(
+      'input[name="enabled"]',
+    );
+    if (!text || !checkbox) throw new Error('Missing form input');
+    text.value = 'edited';
+    setValue?.('second');
+    setChecked?.(true);
+    await tick();
+    expect(host.querySelector('input[name="label"]')).toBe(text);
+    expect(text.value).toBe('second');
+    expect(checkbox.checked).toBe(true);
+    root.unmount();
   });
 
   it('propagates context changes and cleans up effects and element refs', async () => {

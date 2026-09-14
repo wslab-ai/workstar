@@ -35,6 +35,14 @@ function render(value: unknown, document: Document, scope: Scope): Node {
   if (value === null || value === undefined || value === false) {
     return document.createDocumentFragment();
   }
+  if (isRepeat(value)) {
+    const fragment = document.createDocumentFragment();
+    const start = document.createComment('workstar-repeat');
+    const end = document.createComment('/workstar-repeat');
+    fragment.append(start, end);
+    bindRepeat(start, end, value, scope, document);
+    return fragment;
+  }
   if (isTemplate(value)) return renderTemplate(value, document, scope);
   if (Array.isArray(value)) {
     const fragment = document.createDocumentFragment();
@@ -74,6 +82,10 @@ function bindRegion(
   }
   let textNode: Text | undefined;
   let firstRun = hydrateInitial;
+  let currentScope: Scope | undefined;
+  let currentValue: unknown;
+  let hasValue = false;
+  scope.own(() => currentScope?.dispose());
   scope.own(
     effect(() => {
       const value = resolve(source);
@@ -91,8 +103,12 @@ function bindRegion(
           hydratedScope.dispose();
           throw error;
         }
-        return () => hydratedScope.dispose();
+        currentScope = hydratedScope;
+        currentValue = value;
+        hasValue = true;
+        return;
       }
+      if (hasValue && Object.is(currentValue, value)) return;
       if (
         textNode &&
         start.nextSibling === textNode &&
@@ -102,6 +118,8 @@ function bindRegion(
           typeof value === 'bigint')
       ) {
         textNode.data = String(value);
+        currentValue = value;
+        hasValue = true;
         return;
       }
       const nextScope = new Scope();
@@ -109,12 +127,15 @@ function bindRegion(
         const next = render(value, document, nextScope);
         textNode =
           next.nodeType === Node.TEXT_NODE ? (next as Text) : undefined;
+        currentScope?.dispose();
         replaceBetween(start, end, next);
       } catch (error) {
         nextScope.dispose();
         throw error;
       }
-      return () => nextScope.dispose();
+      currentScope = nextScope;
+      currentValue = value;
+      hasValue = true;
     }),
   );
 }

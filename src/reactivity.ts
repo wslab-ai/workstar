@@ -26,6 +26,17 @@ function track(dependency: Dependency): void {
   activeObserver.dependencies.add(dependency);
 }
 
+/** Evaluate a compatibility component without subscribing its parent render. */
+export function withoutTracking<T>(evaluate: () => T): T {
+  const previous = activeObserver;
+  activeObserver = undefined;
+  try {
+    return evaluate();
+  } finally {
+    activeObserver = previous;
+  }
+}
+
 function untrack(observer: Observer): void {
   for (const dependency of observer.dependencies) {
     dependency.observers.delete(observer);
