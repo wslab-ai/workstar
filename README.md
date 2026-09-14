@@ -7,7 +7,7 @@ Workstar is developed independently. Its reactive core, component compiler, opti
 ## Start a project
 
 ```sh
-npx workstar@0.2.0-beta.0 create my-app
+npx workstar@0.2.0 create my-app
 cd my-app
 npm install
 npm run dev
@@ -24,7 +24,7 @@ any static host. There is no mandatory vendor account or server runtime.
 For a server-rendered Cloudflare Worker with static assets and standard HTML form actions:
 
 ```sh
-npx workstar@0.2.0-beta.0 create my-worker --template worker
+npx workstar@0.2.0 create my-worker --template worker
 cd my-worker
 npm install
 npm run check
@@ -36,7 +36,7 @@ The Worker template is also an example, not a production contact service: its fo
 For a server-rendered Node.js application without a platform-specific runtime:
 
 ```sh
-npx workstar@0.2.0-beta.0 create my-node-app --template node
+npx workstar@0.2.0 create my-node-app --template node
 cd my-node-app
 npm install
 npm run dev
