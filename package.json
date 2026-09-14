@@ -84,8 +84,8 @@
   },
   "scripts": {
     "dev": "vite examples",
-    "build": "tsc -p tsconfig.build.json",
-    "build:packages": "npm run build && npm run build --workspace workstar-router && npm run build --workspace workstar-app && npm run build --workspace workstar-compiler",
+    "build": "npm run build --workspace workstar-router && tsc -p tsconfig.build.json",
+    "build:packages": "npm run build && npm run build --workspace workstar-app && npm run build --workspace workstar-compiler",
     "prepare": "npm run build",
     "check": "tsc --noEmit",
     "test": "vitest run --exclude 'packages/**' --exclude 'editors/**'",
