@@ -4,7 +4,7 @@
     "packages/*",
     "templates/worker"
   ],
-  "version": "0.2.4-beta.0",
+  "version": "0.2.4-beta.1",
   "description": "Reactive web framework with SSR, signals, and experimental React-style TSX compatibility without React at runtime.",
   "type": "module",
   "license": "MIT",
@@ -116,7 +116,7 @@
     "access": "public"
   },
   "dependencies": {
-    "workstar-router": "0.2.4-beta.0"
+    "workstar-router": "0.2.4-beta.1"
   },
   "devDependencies": {
     "@radix-ui/react-popover": "1.1.6",
