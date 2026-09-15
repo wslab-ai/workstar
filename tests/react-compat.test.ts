@@ -22,6 +22,27 @@ import ReactCompat from '../src/compat/react/index.js';
 import { jsx } from '../src/compat/react/jsx-runtime.js';
 
 describe('Workstar React source runtime', () => {
+  it('maps React capture handlers to native capture listeners', () => {
+    const host = document.createElement('div');
+    const events: string[] = [];
+    const root = createRoot(host);
+    root.render(
+      jsx('div', {
+        onPointerDownCapture: () => events.push('parent capture'),
+        children: jsx('button', {
+          onPointerDown: () => events.push('target'),
+          children: 'Open',
+        }),
+      }),
+    );
+
+    host.querySelector('button')?.dispatchEvent(
+      new PointerEvent('pointerdown', { bubbles: true }),
+    );
+    expect(events).toEqual(['parent capture', 'target']);
+    root.unmount();
+  });
+
   it('renders nested icon shapes with SVG attributes and namespaces', () => {
     const host = document.createElement('div');
     const root = createRoot(host);

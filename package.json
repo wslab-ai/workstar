@@ -119,6 +119,7 @@
     "workstar-router": "0.2.4-beta.0"
   },
   "devDependencies": {
+    "@radix-ui/react-popover": "1.1.6",
     "@playwright/test": "^1.60.0",
     "esbuild": "^0.28.2",
     "happy-dom": "^20.8.0",

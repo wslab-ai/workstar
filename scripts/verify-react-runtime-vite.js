@@ -7,6 +7,10 @@ import { build, preview } from 'vite';
 import { workstar } from '../packages/compiler/dist/src/vite.js';
 
 const repository = resolve(import.meta.dirname, '..');
+const radixPopover = join(
+  repository,
+  'node_modules/@radix-ui/react-popover/dist/index.mjs',
+);
 const project = await mkdtemp(join(tmpdir(), 'workstar-react-runtime-vite-'));
 const config = {
   root: project,
@@ -44,12 +48,21 @@ try {
       `import { createContext, useContext, useId, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Link, Outlet, Route, Routes, useParams } from 'react-router';
+import * as Popover from ${JSON.stringify(radixPopover)};
 
 const Label = createContext('missing');
 
 function Counter() {
   const [count, setCount] = useState(0);
   return <button id="count" onClick={() => setCount(count + 1)}>{useContext(Label)} {count}</button>;
+}
+
+function PopoverExample() {
+  const [open, setOpen] = useState(false);
+  return <Popover.Root open={open} onOpenChange={setOpen}>
+    <Popover.Trigger asChild><button id="popover-trigger">Open menu</button></Popover.Trigger>
+    <Popover.Portal><Popover.Content id="popover-content">Menu content</Popover.Content></Popover.Portal>
+  </Popover.Root>;
 }
 
 function Home() {
@@ -61,6 +74,7 @@ function Home() {
     </svg>
     <label htmlFor={draftId}>Draft</label><input id={draftId} defaultValue="" />
     <Counter />
+    <PopoverExample />
     <button id="reverse" onClick={() => setRows((current) => [...current].reverse())}>Reverse</button>
     <ul>{rows.map((row) => <li key={row}><input aria-label={row} defaultValue="" /></li>)}</ul>
   </main>;
@@ -130,6 +144,11 @@ createRoot(document.getElementById('app')).render(<App />);
       const betaElement = await beta.elementHandle();
       await page.locator('#count').click();
       await page.locator('#count', { hasText: 'Workstar 1' }).waitFor();
+      await page.locator('#popover-trigger').click();
+      await page.locator('#popover-content', { hasText: 'Menu content' }).waitFor();
+      await page.locator('#count').click();
+      await page.locator('#popover-content').waitFor({ state: 'detached' });
+      assert.equal(await page.locator('#popover-trigger').getAttribute('aria-expanded'), 'false');
       assert.equal(await draft.inputValue(), 'unfinished');
       assert(
         await draft.evaluate(

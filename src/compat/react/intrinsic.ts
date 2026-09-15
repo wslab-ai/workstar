@@ -117,8 +117,11 @@ function eventName(
   tag: string,
   props: Readonly<Record<string, unknown>>,
 ): string {
-  if (name === 'onDoubleClick') return 'dblclick';
-  if (name === 'onChange') {
+  const reactName = name.endsWith('Capture')
+    ? name.slice(0, -'Capture'.length)
+    : name;
+  if (reactName === 'onDoubleClick') return 'dblclick';
+  if (reactName === 'onChange') {
     return tag === 'input' &&
       !['checkbox', 'radio', 'file'].includes(String(props.type))
       ? 'input'
@@ -126,7 +129,7 @@ function eventName(
         ? 'input'
         : 'change';
   }
-  return name.slice(2).toLowerCase();
+  return reactName.slice(2).toLowerCase();
 }
 
 function attributeName(name: string): string {
@@ -359,7 +362,7 @@ export function createIntrinsicView(
       directives.push(
         on(eventName(name, tag, props), (event) => {
           (currentProps[name] as EventListener)(event);
-        }),
+        }, name.endsWith('Capture') ? { capture: true } : undefined),
       );
       continue;
     }
