@@ -145,10 +145,15 @@ createRoot(document.getElementById('app')).render(<App />);
       await page.locator('#count').click();
       await page.locator('#count', { hasText: 'Workstar 1' }).waitFor();
       await page.locator('#popover-trigger').click();
-      await page.locator('#popover-content', { hasText: 'Menu content' }).waitFor();
+      await page
+        .locator('#popover-content', { hasText: 'Menu content' })
+        .waitFor();
       await page.locator('#count').click();
       await page.locator('#popover-content').waitFor({ state: 'detached' });
-      assert.equal(await page.locator('#popover-trigger').getAttribute('aria-expanded'), 'false');
+      assert.equal(
+        await page.locator('#popover-trigger').getAttribute('aria-expanded'),
+        'false',
+      );
       assert.equal(await draft.inputValue(), 'unfinished');
       assert(
         await draft.evaluate(

@@ -360,9 +360,13 @@ export function createIntrinsicView(
       if (typeof value !== 'function')
         throw new TypeError(`Event handler ${name} must be a function.`);
       directives.push(
-        on(eventName(name, tag, props), (event) => {
-          (currentProps[name] as EventListener)(event);
-        }, name.endsWith('Capture') ? { capture: true } : undefined),
+        on(
+          eventName(name, tag, props),
+          (event) => {
+            (currentProps[name] as EventListener)(event);
+          },
+          name.endsWith('Capture') ? { capture: true } : undefined,
+        ),
       );
       continue;
     }

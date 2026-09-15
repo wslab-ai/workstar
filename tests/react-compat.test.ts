@@ -36,9 +36,9 @@ describe('Workstar React source runtime', () => {
       }),
     );
 
-    host.querySelector('button')?.dispatchEvent(
-      new PointerEvent('pointerdown', { bubbles: true }),
-    );
+    host
+      .querySelector('button')
+      ?.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
     expect(events).toEqual(['parent capture', 'target']);
     root.unmount();
   });
