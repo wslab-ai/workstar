@@ -1,7 +1,7 @@
 {
   "name": "workstar-worker-starter",
   "private": true,
-  "version": "0.2.4-beta.1",
+  "version": "0.2.4-beta.2",
   "type": "module",
   "scripts": {
     "compile": "workstar-compile --all src .workstar/generated --css public/workstar.css",
@@ -12,13 +12,13 @@
     "deploy": "npm run check && wrangler deploy"
   },
   "dependencies": {
-    "workstar": "0.2.4-beta.1",
-    "workstar-router": "0.2.4-beta.1",
-    "workstar-app": "0.2.4-beta.1"
+    "workstar": "0.2.4-beta.2",
+    "workstar-router": "0.2.4-beta.2",
+    "workstar-app": "0.2.4-beta.2"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260911.1",
-    "workstar-compiler": "0.2.4-beta.1",
+    "workstar-compiler": "0.2.4-beta.2",
     "typescript": "^6.0.3",
     "wrangler": "^4.130.0"
   }
