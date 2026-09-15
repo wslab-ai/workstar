@@ -1,5 +1,6 @@
 import { jsx, Portal } from './vnode.js';
 import { flushReactiveUpdates } from '../../reactivity.js';
+import { flushReactLayoutEffects } from './render.js';
 
 export function createPortal(
   children: unknown,
@@ -12,6 +13,7 @@ export function createPortal(
 export function flushSync<T>(callback: () => T): T {
   const result = callback();
   flushReactiveUpdates();
+  flushReactLayoutEffects();
   return result;
 }
 

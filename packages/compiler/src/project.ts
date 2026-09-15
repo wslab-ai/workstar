@@ -12,14 +12,59 @@ export interface ProjectStyles {
 
 export interface ForeignAuditEntry {
   filename: string;
+  component: string;
   supported: boolean;
   reason?: string;
+  suggestion?: string;
+}
+
+export interface ForeignDependency {
+  package: string;
+  files: string[];
+  handling: 'workstar-runtime-alias' | 'requires-browser-verification';
 }
 
 export interface ForeignAudit {
   total: number;
   supported: number;
   entries: ForeignAuditEntry[];
+  dependencies: ForeignDependency[];
+}
+
+function componentName(source: string, filename: string): string {
+  const match =
+    /export\s+default\s+function\s+([A-Za-z_$][\w$]*)/.exec(source) ??
+    /export\s+(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/.exec(source) ??
+    /export\s+(?:const|let|var)\s+([A-Za-z_$][\w$]*)/.exec(source);
+  return (
+    match?.[1] ??
+    filename
+      .split(/[\\/]/)
+      .at(-1)!
+      .replace(/\.[^.]+$/, '')
+  );
+}
+
+function packageName(specifier: string): string | undefined {
+  if (
+    specifier.startsWith('.') ||
+    specifier.startsWith('/') ||
+    specifier.startsWith('#')
+  )
+    return undefined;
+  const parts = specifier.split('/');
+  return specifier.startsWith('@') ? parts.slice(0, 2).join('/') : parts[0];
+}
+
+function sourcePackages(source: string): string[] {
+  const packages = new Set<string>();
+  for (const match of source.matchAll(
+    /(?:from\s+|import\s*\(|require\s*\()\s*['"]([^'"]+)['"]/g,
+  )) {
+    const name = packageName(match[1] ?? '');
+    if (name) packages.add(name);
+  }
+  return [...packages];
 }
 
 async function filesInDirectory(
@@ -138,26 +183,33 @@ export async function auditForeignDirectory(
       /\.(tsx|vue)$/.test(name) &&
       !/\.(test|spec|stories)\.(tsx|vue)$/.test(name),
   );
+  const dependencyFiles = new Map<string, Set<string>>();
   const entries = await Promise.all(
     paths.map(async (filename): Promise<ForeignAuditEntry> => {
       const sourcePath = join(sourceDirectory, filename);
+      const source = await readFile(sourcePath, 'utf8');
+      for (const dependency of sourcePackages(source)) {
+        const files = dependencyFiles.get(dependency) ?? new Set<string>();
+        files.add(filename);
+        dependencyFiles.set(dependency, files);
+      }
+      const component = componentName(source, filename);
       try {
-        const converted = convertForeignComponent(
-          await readFile(sourcePath, 'utf8'),
-          sourcePath,
-          {
-            resolveReactImport: (specifier) =>
-              resolveReactComponentImport(sourcePath, specifier),
-          },
-        );
+        const converted = convertForeignComponent(source, sourcePath, {
+          resolveReactImport: (specifier) =>
+            resolveReactComponentImport(sourcePath, specifier),
+        });
         compileComponentParts(converted, `${sourcePath}.workstar`);
-        return { filename, supported: true };
+        return { filename, component, supported: true };
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         return {
           filename,
+          component,
           supported: false,
           reason: message.replace(sourcePath, filename),
+          suggestion:
+            'Use Workstar runtime compatibility for stateful or third-party components, or simplify this component for source compilation.',
         };
       }
     }),
@@ -166,6 +218,16 @@ export async function auditForeignDirectory(
     total: entries.length,
     supported: entries.filter((entry) => entry.supported).length,
     entries,
+    dependencies: [...dependencyFiles]
+      .map(([name, files]): ForeignDependency => ({
+        package: name,
+        files: [...files].sort(),
+        handling:
+          /^(?:react|react-dom|react-router|react-router-dom|vue)$/.test(name)
+            ? 'workstar-runtime-alias'
+            : 'requires-browser-verification',
+      }))
+      .sort((left, right) => left.package.localeCompare(right.package)),
   };
 }
 

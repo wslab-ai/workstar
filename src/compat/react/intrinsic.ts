@@ -227,13 +227,59 @@ function svgImageSource(value: string): ElementRefDirective {
   });
 }
 
-function assignRef(ref: unknown, element: Element | null): void {
+function assignRef(
+  ref: unknown,
+  element: Element | null,
+): (() => void) | undefined {
   if (typeof ref === 'function') {
-    (ref as (element: Element | null) => void)(element);
+    const cleanup = (ref as (element: Element | null) => unknown)(element);
+    if (cleanup !== undefined && typeof cleanup !== 'function')
+      throw new TypeError('React callback ref cleanup must be a function.');
+    return cleanup as (() => void) | undefined;
   } else if (ref && typeof ref === 'object' && 'current' in ref) {
     (ref as { current: Element | null }).current = element;
   } else {
     throw new TypeError('React ref must be a callback or ref object.');
+  }
+}
+
+function clearRef(ref: unknown, cleanup: (() => void) | undefined): void {
+  if (cleanup) cleanup();
+  else assignRef(ref, null);
+}
+
+function updateTextControlValue(
+  element: HTMLInputElement | HTMLSelectElement,
+  value: unknown,
+): void {
+  const next = value == null ? '' : String(value);
+  if (element.value === next) return;
+  const focused = element.ownerDocument.activeElement === element;
+  const selection =
+    focused && element instanceof HTMLInputElement
+      ? {
+          start: element.selectionStart,
+          end: element.selectionEnd,
+          direction: element.selectionDirection,
+        }
+      : undefined;
+  element.value = next;
+  if (
+    selection &&
+    element instanceof HTMLInputElement &&
+    selection.start !== null &&
+    selection.end !== null
+  ) {
+    const length = element.value.length;
+    try {
+      element.setSelectionRange(
+        Math.min(selection.start, length),
+        Math.min(selection.end, length),
+        selection.direction ?? 'none',
+      );
+    } catch {
+      // Some input types expose selection properties but reject range writes.
+    }
   }
 }
 
@@ -245,11 +291,27 @@ function controlledInput(
   return elementRef((element) => {
     dispose?.();
     dispose = undefined;
-    if (!(element instanceof HTMLInputElement)) return;
+    if (
+      !(element instanceof HTMLInputElement) &&
+      !(element instanceof HTMLSelectElement)
+    )
+      return;
+    let initial = true;
     dispose = effect(() => {
       const value = source.value;
-      if (name === 'value') element.value = value == null ? '' : String(value);
-      else element.checked = Boolean(value);
+      if (
+        name === 'value' &&
+        initial &&
+        element instanceof HTMLInputElement &&
+        element.value !== element.defaultValue
+      ) {
+        initial = false;
+        return;
+      }
+      if (name === 'value') updateTextControlValue(element, value);
+      else if (element instanceof HTMLInputElement)
+        element.checked = Boolean(value);
+      initial = false;
     });
   });
 }
@@ -327,6 +389,7 @@ export function createIntrinsicView(
   let currentProps = props;
   let currentChildren = children;
   let refElement: Element | null = null;
+  let refCleanup: (() => void) | undefined;
   let imageElement: Element | null = null;
   let styleElement: Element | null = null;
   const directives: Directive[] = [];
@@ -350,8 +413,11 @@ export function createIntrinsicView(
         throw new TypeError('React ref must be a callback or ref object.');
       directives.push(
         elementRef((element) => {
+          if (!element && refElement) clearRef(currentProps.ref, refCleanup);
           refElement = element;
-          assignRef(currentProps.ref, element);
+          refCleanup = element
+            ? assignRef(currentProps.ref, element)
+            : undefined;
         }),
       );
       continue;
@@ -409,7 +475,10 @@ export function createIntrinsicView(
           : current;
       }),
     );
-    if (tag === 'input' && (name === 'value' || name === 'checked'))
+    if (
+      (tag === 'input' && (name === 'value' || name === 'checked')) ||
+      (tag === 'select' && name === 'value')
+    )
       directives.push(controlledInput(name, source));
   }
   const strings = [`<${tag}`, ...directives.map(() => '')];
@@ -458,8 +527,8 @@ export function createIntrinsicView(
         if (name === 'style') styleText(nextProps[name]);
       }
       if (refElement && previousProps.ref !== nextProps.ref) {
-        assignRef(previousProps.ref, null);
-        assignRef(nextProps.ref, refElement);
+        clearRef(previousProps.ref, refCleanup);
+        refCleanup = assignRef(nextProps.ref, refElement);
       }
       currentProps = nextProps;
       currentChildren = nextChildren;

@@ -107,7 +107,7 @@ Nested reactive subscriptions and listeners are cleaned up when their region dis
 
 ## Experimental TSX and Vue source compatibility
 
-Supported stateless TSX and Vue SFC components can be compiled to Workstar modules without React or Vue runtimes. Vite accepts explicit `?workstar` imports; `workstar-compile --compat` works with other bundlers and server builds. An experimental runtime mode also builds unchanged React TSX source with Workstar-backed hooks and routing, without bundling React. See the [compatibility guide](docs/foreign-components.md) for syntax, verification, and limits.
+Supported stateless TSX and Vue SFC components can be compiled to Workstar modules without React or Vue runtimes. Vite accepts explicit `?workstar` imports; `workstar-compile --compat` works with other bundlers and server builds. An experimental runtime mode also builds unchanged React TSX source with Workstar-backed hooks, class error boundaries, routing, SSR, and in-place hydration, without bundling React. See the [compatibility guide](docs/foreign-components.md) for syntax, verification, and limits.
 
 ## Scope and limits
 

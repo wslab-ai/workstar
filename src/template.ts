@@ -502,7 +502,21 @@ function bindDirective(
             return;
           }
         }
-        element.value = text;
+        if (element.value !== text) {
+          const focused = element.ownerDocument.activeElement === element;
+          const start = focused ? element.selectionStart : null;
+          const end = focused ? element.selectionEnd : null;
+          const direction = focused ? element.selectionDirection : null;
+          element.value = text;
+          if (start !== null && end !== null) {
+            const length = element.value.length;
+            element.setSelectionRange(
+              Math.min(start, length),
+              Math.min(end, length),
+              direction ?? 'none',
+            );
+          }
+        }
         initial = false;
       }),
     );

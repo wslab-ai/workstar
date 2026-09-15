@@ -6,14 +6,17 @@ import { createRoot } from '../src/compat/react/client.js';
 import { createPortal } from '../src/compat/react/dom.js';
 import {
   Children,
+  Component,
   StrictMode,
   Suspense,
   cloneElement,
   createContext,
   isValidElement,
   lazy,
+  memo,
   useContext,
   useEffect,
+  useLayoutEffect,
   useRef,
   useReducer,
   useState,
@@ -22,6 +25,153 @@ import ReactCompat from '../src/compat/react/index.js';
 import { jsx } from '../src/compat/react/jsx-runtime.js';
 
 describe('Workstar React source runtime', () => {
+  it('runs layout effects after DOM commit and passive effects later', async () => {
+    const host = document.createElement('div');
+    const events: string[] = [];
+    function View() {
+      useLayoutEffect(() => {
+        events.push(`layout:${host.textContent}`);
+      }, []);
+      useEffect(() => {
+        events.push(`passive:${host.textContent}`);
+      }, []);
+      return jsx('span', { children: 'committed' });
+    }
+    const root = createRoot(host);
+    root.render(jsx(View, {}));
+    expect(events).toEqual(['layout:committed']);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(events).toEqual(['layout:committed', 'passive:committed']);
+    root.unmount();
+  });
+
+  it('skips memoized children while ordinary children follow owner renders', async () => {
+    const host = document.createElement('div');
+    let update: (() => void) | undefined;
+    let ordinaryRenders = 0;
+    let memoRenders = 0;
+    function Ordinary() {
+      ordinaryRenders++;
+      return jsx('span', { children: 'ordinary' });
+    }
+    const Memoized = memo(function MemoizedChild() {
+      memoRenders++;
+      return jsx('span', { children: 'memo' });
+    });
+    function Parent() {
+      const [count, setCount] = useState(0);
+      update = () => setCount((value) => value + 1);
+      return jsx('div', {
+        'data-count': count,
+        children: [jsx(Ordinary, {}), jsx(Memoized, {})],
+      });
+    }
+    const root = createRoot(host);
+    root.render(jsx(Parent, {}));
+    update?.();
+    await tick();
+    expect(ordinaryRenders).toBe(2);
+    expect(memoRenders).toBe(1);
+    root.unmount();
+  });
+
+  it('updates one stateful row in a large memoized keyed list', async () => {
+    const host = document.createElement('div');
+    const rowCount = 250;
+    const renders = Array.from({ length: rowCount }, () => 0);
+    let updateTarget: (() => void) | undefined;
+    const Row = memo(function Row({ index }: { index: number }) {
+      const [value, setValue] = useState(0);
+      renders[index]++;
+      if (index === 125)
+        updateTarget = () => setValue((current) => current + 1);
+      return jsx('li', { children: `${index}:${value}` });
+    });
+    function List() {
+      return jsx('ul', {
+        children: Array.from({ length: rowCount }, (_, index) =>
+          jsx(Row, { index }, index),
+        ),
+      });
+    }
+    const root = createRoot(host);
+    root.render(jsx(List, {}));
+    updateTarget?.();
+    await tick();
+    expect(renders.reduce((total, count) => total + count, 0)).toBe(
+      rowCount + 1,
+    );
+    expect(host.querySelectorAll('li')[125]?.textContent).toBe('125:1');
+    root.unmount();
+  });
+
+  it('runs class lifecycles and setState callbacks after commits', async () => {
+    const host = document.createElement('div');
+    const events: string[] = [];
+    let counter: Counter | undefined;
+    class Counter extends Component<Record<string, never>, { count: number }> {
+      override state = { count: 0 };
+
+      override componentDidMount() {
+        events.push(`mount:${host.textContent}`);
+      }
+
+      override componentDidUpdate(
+        _previousProps: Readonly<Record<string, never>>,
+        previousState: Readonly<{ count: number }>,
+      ) {
+        events.push(`update:${previousState.count}:${host.textContent}`);
+      }
+
+      override componentWillUnmount() {
+        events.push('unmount');
+      }
+
+      override render() {
+        counter = this;
+        return jsx('span', { children: this.state.count });
+      }
+    }
+    const root = createRoot(host);
+    root.render(jsx(Counter, {}));
+    expect(events).toEqual(['mount:0']);
+    counter?.setState({ count: 1 }, () => events.push('callback'));
+    await tick();
+    expect(events).toEqual(['mount:0', 'update:0:1', 'callback']);
+    root.unmount();
+    expect(events.at(-1)).toBe('unmount');
+  });
+
+  it('renders class error-boundary fallback and reports the failure', () => {
+    const host = document.createElement('div');
+    const caught = vi.fn();
+    class Boundary extends Component<
+      { children: unknown },
+      { failed: boolean }
+    > {
+      override state = { failed: false };
+      static getDerivedStateFromError() {
+        return { failed: true };
+      }
+      override componentDidCatch(error: unknown) {
+        caught(error);
+      }
+      override render() {
+        return this.state.failed
+          ? jsx('p', { children: 'Recovered' })
+          : this.props.children;
+      }
+    }
+    function Broken() {
+      throw new Error('render failed');
+    }
+    const root = createRoot(host);
+    root.render(jsx(Boundary, { children: jsx(Broken, {}) }));
+    expect(host.textContent).toBe('Recovered');
+    expect(caught).toHaveBeenCalledOnce();
+    root.unmount();
+  });
+
   it('maps React capture handlers to native capture listeners', () => {
     const host = document.createElement('div');
     const events: string[] = [];
@@ -352,6 +502,62 @@ describe('Workstar React source runtime', () => {
     expect(text.value).toBe('second');
     expect(checkbox.checked).toBe(true);
     root.unmount();
+  });
+
+  it('preserves focused controlled-input selection and controls selects', async () => {
+    const host = document.createElement('div');
+    document.body.append(host);
+    let update: (() => void) | undefined;
+    function Form() {
+      const [value, setValue] = useState('hello world');
+      const [choice, setChoice] = useState('a');
+      update = () => {
+        setValue('hello there');
+        setChoice('b');
+      };
+      return jsx('form', {
+        children: [
+          jsx('input', { value }),
+          jsx('select', {
+            value: choice,
+            children: [
+              jsx('option', { value: 'a', children: 'A' }),
+              jsx('option', { value: 'b', children: 'B' }),
+            ],
+          }),
+        ],
+      });
+    }
+    const root = createRoot(host);
+    root.render(jsx(Form, {}));
+    const input = host.querySelector('input')!;
+    const select = host.querySelector('select')!;
+    input.focus();
+    input.setSelectionRange(2, 5);
+    update?.();
+    await tick();
+    expect(input.value).toBe('hello there');
+    expect(input.selectionStart).toBe(2);
+    expect(input.selectionEnd).toBe(5);
+    expect(select.value).toBe('b');
+    root.unmount();
+    host.remove();
+  });
+
+  it('runs callback-ref cleanup exactly once when a ref changes', async () => {
+    const host = document.createElement('div');
+    const firstCleanup = vi.fn();
+    const secondCleanup = vi.fn();
+    const firstRef = vi.fn(() => firstCleanup);
+    const secondRef = vi.fn(() => secondCleanup);
+    const root = createRoot(host);
+    root.render(jsx('input', { ref: firstRef }));
+    root.render(jsx('input', { ref: secondRef }));
+    await tick();
+    expect(firstCleanup).toHaveBeenCalledOnce();
+    root.unmount();
+    expect(secondCleanup).toHaveBeenCalledOnce();
+    expect(firstRef).not.toHaveBeenCalledWith(null);
   });
 
   it('propagates context changes and cleans up effects and element refs', async () => {

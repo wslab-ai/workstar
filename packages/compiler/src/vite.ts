@@ -14,6 +14,7 @@ import { convertReactRootEntry } from './react-entry-compat.js';
 import { reactComponentExportName } from './react-compat.js';
 import { resolveReactComponentImport } from './react-import-resolution.js';
 import { transpileComponent } from './source-map.js';
+import { validateReactRuntimeSource } from './runtime-diagnostics.js';
 
 export interface WorkstarPluginOptions {
   source?: string;
@@ -111,6 +112,9 @@ export function workstar(options: WorkstarPluginOptions = {}): Plugin {
         ? `${runtime}/client.js`
         : `${runtime}/client`;
       const dom = isAbsolute(runtime) ? `${runtime}/dom.js` : `${runtime}/dom`;
+      const server = isAbsolute(runtime)
+        ? `${runtime}/server.js`
+        : `${runtime}/server`;
       const router = isAbsolute(runtime)
         ? resolve(runtime, '../react-router/index.js')
         : 'workstar/compat/react-router';
@@ -121,7 +125,9 @@ export function workstar(options: WorkstarPluginOptions = {}): Plugin {
         },
         resolve: {
           alias: [
+            { find: /^react-router-dom$/, replacement: router },
             { find: /^react-router$/, replacement: router },
+            { find: /^react-dom\/server$/, replacement: server },
             { find: /^react-dom\/client$/, replacement: client },
             { find: /^react-dom$/, replacement: dom },
             { find: /^react\/jsx-dev-runtime$/, replacement: jsxDevRuntime },
@@ -176,6 +182,8 @@ export function workstar(options: WorkstarPluginOptions = {}): Plugin {
     },
     transform(source, id) {
       const filename = id.split('?', 1)[0]!;
+      if (options.foreign === 'runtime' && /\.[cm]?[jt]sx?$/.test(filename))
+        validateReactRuntimeSource(source, filename);
       if (options.foreign === 'automatic' && isForeignSource(filename)) {
         const entry = filename.endsWith('.tsx')
           ? convertReactRootEntry(source, filename)

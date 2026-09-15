@@ -23,6 +23,8 @@ Inside `<script lang="ts">`, imports and an optional exported `Props` type defin
 
 Use `bind:attrs={record}` on a native element to spread a plain record of checked HTML attributes. The record can be reactive. Event handlers, styles, refs, and unsafe URLs are rejected; bind events explicitly with `on:event`.
 
+Run `workstar-compile --compat-audit src` before migrating a TSX or Vue tree. The JSON report identifies the component and first unsupported construct in each file, suggests runtime mode when appropriate, and inventories packages handled by Workstar aliases or requiring browser verification. Runtime-mode Vite builds fail early on unsupported React API imports and include the source position and implemented alternatives.
+
 `<noscript>` accepts static text only. Put links and localized expressions elsewhere in the page; nested markup would be parsed as raw text and dynamic markers cannot hydrate reliably.
 
 See the [Workstar repository](https://github.com/wslab-ai/workstar) for starters and current limitations.

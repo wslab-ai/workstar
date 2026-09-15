@@ -14,7 +14,10 @@ const iterations = {
   mount: 100,
   update: 200,
   hydrate: 100,
+  compatibilityListUpdate: 200,
+  compatibilityListReorder: 20,
 };
+const compatibilityRows = 1000;
 const rounds = 5;
 
 function median(values) {
@@ -80,7 +83,7 @@ try {
   const page = await browser.newPage();
   await page.goto(`http://127.0.0.1:${address.port}/`);
   const browserMetrics = await page.evaluate(
-    async ({ markup, iterations, rounds }) => {
+    async ({ markup, iterations, rounds, compatibilityRows }) => {
       const { html, mount, hydrate, signal, tick } =
         await import('/dist/index.js');
       const host = document.querySelector('#host');
@@ -126,13 +129,87 @@ try {
         }
         hydrationSamples.push(performance.now() - start);
       }
+      const [{ createRoot }, react, jsxRuntime] = await Promise.all([
+        import('/dist/compat/react/client.js'),
+        import('/dist/compat/react/index.js'),
+        import('/dist/compat/react/jsx-runtime.js'),
+      ]);
+      let updateTarget;
+      let reorderRows;
+      let rowRenders = 0;
+      const Row = react.memo(function BenchmarkRow({ index }) {
+        const [value, setValue] = react.useState(0);
+        rowRenders++;
+        if (index === Math.floor(compatibilityRows / 2))
+          updateTarget = () => setValue((current) => current + 1);
+        return jsxRuntime.jsx('tr', {
+          children: jsxRuntime.jsx('td', { children: `${index}:${value}` }),
+        });
+      });
+      function Table() {
+        const [rows, setRows] = react.useState(() =>
+          Array.from({ length: compatibilityRows }, (_, index) => index),
+        );
+        reorderRows = () => setRows((current) => [...current].reverse());
+        return jsxRuntime.jsx('table', {
+          children: jsxRuntime.jsx('tbody', {
+            children: rows.map((index) =>
+              jsxRuntime.jsx(Row, { index }, index),
+            ),
+          }),
+        });
+      }
+      const compatibilityRoot = createRoot(host);
+      compatibilityRoot.render(jsxRuntime.jsx(Table, {}));
+      const initialRowRenders = rowRenders;
+      const compatibilityListSamples = [];
+      for (let round = 0; round < rounds; round++) {
+        const start = performance.now();
+        for (
+          let index = 0;
+          index < iterations.compatibilityListUpdate;
+          index++
+        ) {
+          updateTarget();
+          await tick();
+        }
+        compatibilityListSamples.push(performance.now() - start);
+      }
+      const expectedUpdatedRowRenders =
+        rounds * iterations.compatibilityListUpdate;
+      if (
+        initialRowRenders !== compatibilityRows ||
+        rowRenders - initialRowRenders !== expectedUpdatedRowRenders
+      )
+        throw new Error('A local keyed-list update rendered unrelated rows.');
+      const compatibilityReorderSamples = [];
+      for (let round = 0; round < rounds; round++) {
+        const start = performance.now();
+        for (
+          let index = 0;
+          index < iterations.compatibilityListReorder;
+          index++
+        ) {
+          reorderRows();
+          await tick();
+        }
+        compatibilityReorderSamples.push(performance.now() - start);
+      }
+      if (rowRenders - initialRowRenders !== expectedUpdatedRowRenders)
+        throw new Error('Reordering a memoized keyed list rendered its rows.');
+      compatibilityRoot.unmount();
       return {
         mountMs: median(mountSamples),
         updateMs: median(updateSamples),
         hydrateMs: median(hydrationSamples),
+        compatibilityListUpdateMs: median(compatibilityListSamples),
+        compatibilityListReorderMs: median(compatibilityReorderSamples),
+        compatibilityRows,
+        compatibilityInitialRowRenders: initialRowRenders,
+        compatibilityUpdatedRowRenders: rowRenders - initialRowRenders,
       };
     },
-    { markup: serverMarkup, iterations, rounds },
+    { markup: serverMarkup, iterations, rounds, compatibilityRows },
   );
   process.stdout.write(
     `${JSON.stringify(

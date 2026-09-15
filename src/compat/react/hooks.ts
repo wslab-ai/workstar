@@ -19,6 +19,7 @@ type RefSlot = {
 };
 type EffectSlot = {
   readonly kind: 'effect';
+  readonly phase: 'layout' | 'passive';
   deps: readonly unknown[] | undefined;
   cleanup: (() => void) | undefined;
   revision: number;
@@ -31,7 +32,9 @@ export interface ComponentInstance {
   readonly hooks: HookSlot[];
   context: ReadonlyMap<Context<unknown>, unknown>;
   readonly scheduleEffect: (run: () => void) => void;
+  readonly scheduleLayoutEffect: (run: () => void) => void;
   readonly invalidate: () => void;
+  readonly server: boolean;
   active: boolean;
   cursor: number;
   hookCount: number | undefined;
@@ -178,6 +181,23 @@ export function useRef<T>(initial: T): { current: T } {
   };
 }
 
+export function useImperativeHandle<T>(
+  ref: ((value: T | null) => void) | { current: T | null } | null | undefined,
+  create: () => T,
+  deps?: readonly unknown[],
+): void {
+  useLayoutEffect(() => {
+    if (!ref) return;
+    const value = create();
+    if (typeof ref === 'function') ref(value);
+    else ref.current = value;
+    return () => {
+      if (typeof ref === 'function') ref(null);
+      else ref.current = null;
+    };
+  }, deps);
+}
+
 export function useId(): string {
   return slot('id', (instance, index) => ({
     kind: 'id',
@@ -192,7 +212,8 @@ export function useContext<T>(context: Context<T>): T {
     : context.defaultValue;
 }
 
-export function useEffect(
+function useScheduledEffect(
+  phase: EffectSlot['phase'],
   callback: () => void | (() => void),
   deps?: readonly unknown[],
 ): void {
@@ -200,14 +221,22 @@ export function useEffect(
   const existing = instance.hooks[instance.cursor];
   const effect = slot('effect', () => ({
     kind: 'effect',
+    phase,
     deps: undefined,
     cleanup: undefined,
     revision: 0,
   }));
+  if (effect.phase !== phase)
+    throw new Error('Component effect hook type changed between renders.');
   if (existing && sameDeps(effect.deps, deps)) return;
   effect.deps = deps;
   const revision = ++effect.revision;
-  instance.scheduleEffect(() => {
+  if (instance.server) return;
+  const schedule =
+    phase === 'layout'
+      ? instance.scheduleLayoutEffect
+      : instance.scheduleEffect;
+  schedule(() => {
     if (!instance.active || effect.revision !== revision) return;
     effect.cleanup?.();
     const cleanup = callback();
@@ -215,7 +244,19 @@ export function useEffect(
   });
 }
 
-export const useLayoutEffect = useEffect;
+export function useEffect(
+  callback: () => void | (() => void),
+  deps?: readonly unknown[],
+): void {
+  useScheduledEffect('passive', callback, deps);
+}
+
+export function useLayoutEffect(
+  callback: () => void | (() => void),
+  deps?: readonly unknown[],
+): void {
+  useScheduledEffect('layout', callback, deps);
+}
 
 export function useReducer<State, Action>(
   reducer: (state: State, action: Action) => State,
@@ -240,7 +281,10 @@ export function useSyncExternalStore<Snapshot>(
   getSnapshot: () => Snapshot,
   _getServerSnapshot?: () => Snapshot,
 ): Snapshot {
-  const [snapshot, setSnapshot] = useState(getSnapshot);
+  const instance = current();
+  const readSnapshot =
+    instance.server && _getServerSnapshot ? _getServerSnapshot : getSnapshot;
+  const [snapshot, setSnapshot] = useState(readSnapshot);
   useEffect(() => {
     const check = () =>
       setSnapshot((previous) => {

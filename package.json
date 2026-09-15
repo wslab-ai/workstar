@@ -81,6 +81,10 @@
       "types": "./dist/compat/react/dom.d.ts",
       "import": "./dist/compat/react/dom.js"
     },
+    "./compat/react/server": {
+      "types": "./dist/compat/react/server.d.ts",
+      "import": "./dist/compat/react/server.js"
+    },
     "./compat/react-router": {
       "types": "./dist/compat/react-router/index.d.ts",
       "import": "./dist/compat/react-router/index.js"
@@ -107,10 +111,11 @@
     "verify:compat": "npm run build --workspace workstar-compiler && node scripts/verify-compat-hmr.js",
     "verify:compat:esbuild": "npm run build:packages && node scripts/verify-react-compat-esbuild.js",
     "verify:compat:runtime-vite": "npm run build:packages && node scripts/verify-react-runtime-vite.js",
+    "verify:compat:ssr": "npm run build && node scripts/verify-react-ssr.js",
     "verify:vscode": "npm ci --prefix editors/vscode && npm test --prefix editors/vscode && npm run package --prefix editors/vscode",
     "verify:worker": "npm run check --workspace workstar-worker-starter && node scripts/verify-worker.js",
     "verify:node": "node scripts/verify-node.js",
-    "verify": "npm run format:check && npm run check:release && npm run check && npm test && npm run build && npm run size && npm run verify:hydration && npm run verify:router && npm run verify:app && npm run verify:compiler && npm run verify:compat && npm run verify:compat:esbuild && npm run verify:compat:runtime-vite && npm run verify:vscode && npm run verify:starter && npm run verify:worker && npm run verify:node && npm run verify:packaged-starter && npm pack --dry-run"
+    "verify": "npm run format:check && npm run check:release && npm run check && npm test && npm run build && npm run size && npm run verify:hydration && npm run verify:router && npm run verify:app && npm run verify:compiler && npm run verify:compat && npm run verify:compat:esbuild && npm run verify:compat:runtime-vite && npm run verify:compat:ssr && npm run verify:vscode && npm run verify:starter && npm run verify:worker && npm run verify:node && npm run verify:packaged-starter && npm pack --dry-run"
   },
   "publishConfig": {
     "access": "public"

@@ -82,10 +82,23 @@ describe('bundler-independent compatibility compilation', () => {
       expect(report.entries).toEqual([
         {
           filename: 'Unsupported.tsx',
+          component: 'Counter',
           supported: false,
           reason: expect.stringContaining('imports or module statements'),
+          suggestion: expect.stringContaining('runtime compatibility'),
         },
-        { filename: join('ui', 'Loader.tsx'), supported: true },
+        {
+          filename: join('ui', 'Loader.tsx'),
+          component: 'Loader',
+          supported: true,
+        },
+      ]);
+      expect(report.dependencies).toEqual([
+        {
+          package: 'react',
+          files: ['Unsupported.tsx'],
+          handling: 'workstar-runtime-alias',
+        },
       ]);
     } finally {
       await rm(directory, { recursive: true, force: true });

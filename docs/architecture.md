@@ -8,6 +8,7 @@ Worker starter      ─────► workstar-app + public package API
 workstar-app        ─────► workstar/server + workstar-router
 DOM hydration/mount ─────► shared template model + reactivity
 server rendering    ─────► shared template model + attribute rules
+React compatibility ─────► DOM/server rendering + shared reactivity
 shared model        ─────► reactivity
 reactivity          ─────► no browser or package dependency
 workstar-router     ─────► no Workstar or DOM dependency
@@ -18,6 +19,8 @@ workstar-router     ─────► no Workstar or DOM dependency
 `src/template-model.ts` defines the template and directive contract. `src/attribute-value.ts` is the single validation rule for dynamic attributes in both rendering environments. `src/template.ts` owns DOM ranges, event/attribute bindings, hydration, and view scopes. Static markup is parsed once per template instance; updates touch only dynamic ranges. Nested scopes dispose their listeners and effects when replaced. `mount()` owns a host and makes remount/dispose idempotent.
 
 `src/server.ts` renders escaped HTML and deterministic slot markers without a DOM. `hydrate()` attaches to those markers, preserves the initial server DOM, rejects mismatched dynamic content, and then uses the same reactive bindings as `mount()`. The server module has no dependency on the DOM module. A Chromium proof checks that a server-rendered button keeps its identity while becoming interactive.
+
+`src/compat/react` adapts React-shaped elements and hooks to those same contracts. Its client renderer schedules layout and passive effects in separate commit phases, prunes unaffected component and keyed-list branches, and keeps intrinsic nodes stable. Its server renderer emits the same markers consumed by `hydrateRoot`; it has no browser dependency for ordinary HTML elements.
 
 `packages/compiler` is an optional build-time package. It compiles restricted
 `.workstar` components into typed TypeScript modules. The Vite integration transforms
